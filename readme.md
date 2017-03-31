@@ -2,6 +2,9 @@
 
 #### Contributors
 
-Ben Black
+* Ben Black
+* Thao Dinh
 
-Thao Dinh
+#### Description
+
+This project is about predicting state legislatures.
