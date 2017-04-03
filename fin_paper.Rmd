@@ -3,3 +3,12 @@ title: "fin_paper"
 output: html_document
 ---
 
+```{r}
+library(foreign)
+library(tidyverse)
+```
+
+```{r}
+data = read.dta("data/SLERs1967to2015_20160912b_NV.dta")
+
+```
