@@ -6,9 +6,57 @@ output: html_document
 ```{r}
 library(foreign)
 library(tidyverse)
+library(lubridate)
+```
+
+```{r}
+IN_SENATE = function(sen_or_house) sen_or_house == 8
+IN_HOUSE = function(sen_or_house) sen_or_house == 9
+GUESS_DAY = function(day) ifelse(is.na(day),2,day)
 ```
 
 ```{r}
 data = read.dta("data/SLERs1967to2015_20160912b_NV.dta")
+
+tables = lapply(data,table)
+info_density = lapply(tables,dim)
+tables["v17"]
+
+
+named_data = data %>%
+  rename(ELECTION_YEAR=v05,
+         ELECTION_MONTH=v06,
+         ELECTION_DAY=v06b,
+         SENATE_OR_HOUSE=v07,
+         DISTRICT_NAME=v08,
+         ALT_DISTRICT_NAME=v08z,
+         DISTRICT_NUM=v09,
+         ALT_DISTRICT_NUM=v09z,
+         DISTRICT_TYPE=v12,
+         NUM_WINNERS_FOR_POS=v13,
+         TERM_LENGTH_BY_LAW=v14,
+         TERM_LENGTH_ACTUAL=v15,
+         ELECTION_TYPE=v16,
+         ELECTION_DETERMINES_SITTING_LEG=v17,
+         ELECTION_DETERMINES_SITTING_LEG_GEN=v17b,
+         CANIDATE_ID=v18,
+         PARTY_CODE_DETAILED=v20,
+         PARTY_CODE_SIMPLIFIED=v21,
+         INCUMBENCY_DUMMY=v22,
+         CANIDATE_VOTE_TOTAL=v23,
+         ELECTION_WINNER=v24) %>%
+  mutate(ELECTION_FULL_DATE = as.Date(ISOdate(ELECTION_YEAR,ELECTION_MONTH,GUESS_DAY(ELECTION_DAY))))
+
+general_election_data = named_data %>%
+  filter(ELECTION_DETERMINES_SITTING_LEG==1)
+
+house_data = filter(genral_election_data,IN_HOUSE(SENATE_OR_HOUSE)) 
+
+
+
+table(house_data$ELECTION_FULL_DATE)
+
+
+#table(named_data$SENATE_OR_HOUSE,useNA="ifany")
 
 ```
