@@ -52,11 +52,10 @@ general_election_data = named_data %>%
 
 house_data = filter(genral_election_data,IN_HOUSE(SENATE_OR_HOUSE)) 
 
-
-
-table(house_data$ELECTION_FULL_DATE)
-
-
+#table(house_data$ELECTION_FULL_DATE)
 #table(named_data$SENATE_OR_HOUSE,useNA="ifany")
+```
+
+```{r}
 
 ```
