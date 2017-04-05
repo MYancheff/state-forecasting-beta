@@ -1,6 +1,6 @@
 ---
 title: "fin_paper"
-output: html_document
+output: github_document
 ---
 
 ```{r}
@@ -50,7 +50,7 @@ named_data = data %>%
 general_election_data = named_data %>%
   filter(ELECTION_DETERMINES_SITTING_LEG==1)
 
-house_data = filter(genral_election_data,IN_HOUSE(SENATE_OR_HOUSE)) 
+house_data = filter(general_election_data,IN_HOUSE(SENATE_OR_HOUSE)) 
 
 #table(house_data$ELECTION_FULL_DATE)
 #table(named_data$SENATE_OR_HOUSE,useNA="ifany")
