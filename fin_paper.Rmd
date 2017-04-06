@@ -18,7 +18,7 @@ REP_PARTY_CODE = 200
 ```
 
 ```{r}
-data = read.dta("data/SLERs1967to2015_20160912b_NV.dta")
+data = read.dta("state-legislative-data/SLERs1967to2015_20160912b_NV.dta")
 
 tables = lapply(data,table)
 info_densty = lapply(tables,dim)
@@ -76,3 +76,12 @@ train_data = house_data %>%
 model = 
 
 ```
+
+
+
+Road citation:
+
+Gary King; Bradley Palmquist; Greg Adams; Micah Altman;
+Kenneth Benoit; Claudine Gay; Jeffrey B. Lewis; Russ Mayer;
+and Eric Reinhardt. 1997. "The Record of American Democracy, 1984-1990," Harvard University, Cambridge, MA [producer],
+Ann Arbor, MI: ICPSR [distributor].
