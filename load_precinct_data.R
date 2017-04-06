@@ -17,6 +17,16 @@ load_file = function(filename){
 files = lapply(all_paths,load_file)
 prec_data = rbindlist(files)
 
+party_association = list(
+  c("GEORGE W. BUSH","REP"),
+  c("JOHN F. KERRY","DEM"),
+  c("McCain, John","REP"),
+  c("Obama, Barack","DEM"),
+  c("Romney, Mitt","REP"),
+  c("CLINTON, HILLARY","DEM"),
+  c("TRUMP, DONALD J.","REP")
+)
+transpose(party_association)
 
 ##############################################
 # Road data

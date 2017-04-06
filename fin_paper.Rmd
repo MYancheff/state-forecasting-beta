@@ -22,7 +22,7 @@ data = read.dta("state-legislative-data/SLERs1967to2015_20160912b_NV.dta")
 
 tables = lapply(data,table)
 info_densty = lapply(tables,dim)
-tables["v22"]
+tables["v38"]
 
 
 named_data = data %>%
