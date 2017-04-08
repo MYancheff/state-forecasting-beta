@@ -20,9 +20,9 @@ REP_PARTY_CODE = 200
 ```{r}
 data = read.dta("state-legislative-data/SLERs1967to2015_20160912b_NV.dta")
 
-tables = lapply(data,table)
+tables = lapply(data,function(x)table(x,useNA="ifany"))
 info_densty = lapply(tables,dim)
-tables["v38"]
+tables["v09z"]
 
 
 named_data = data %>%
@@ -55,7 +55,7 @@ named_data = data %>%
 general_election_data = named_data %>%
   filter(ELECTION_DETERMINES_SITTING_LEG==1)
 
-house_data = filter(general_election_data,IN_HOUSE(SENATE_OR_HOUSE)) 
+house_data = filter(general_election_data,IN_HOUSE(SENATE_OR_HOUSE))
 
 #table(house_data$election_full_date)
 #table(named_data$SENATE_OR_HOUSE,useNA="ifany")
@@ -63,19 +63,29 @@ house_data = filter(general_election_data,IN_HOUSE(SENATE_OR_HOUSE))
 
 ```{r}
 use_data = house_data %>%
-  select(ELECTION_WINNER,ELECTION_YEAR,party_code,INCUMBENCY_DUMMY,CANIDATE_VOTE_TOTAL,DISTRICT_NUM)
+  select(ELECTION_WINNER,
+         ELECTION_YEAR,
+         party_code,
+         INCUMBENCY_DUMMY,
+         CANIDATE_VOTE_TOTAL,
+         DISTRICT_NUM)
 ```
 
 ```{r}
 beforeyear = 2014
 
-train_data = house_data %>%
-  filter(ELECTION_YEAR < beforeyear)
-  
+train_data = use_data %>%
+  filter(ELECTION_YEAR < beforeyear) %>%
+  filter(ELECTION_YEAR > 1970) %>% # we don't have district numbers for 1968 and 1970! (this should be fixable)
+  group_by(DISTRICT_NUM,ELECTION_YEAR) %>%
+  mutate(percent_vote = CANIDATE_VOTE_TOTAL/sum(CANIDATE_VOTE_TOTAL)) %>%
+  ungroup()
 
-model = 
+pred_perc = lm(percent_vote ~ INCUMBENCY_DUMMY,data=train_data)
+
 
 ```
+
 
 
 
