@@ -61,6 +61,15 @@ house_data = filter(general_election_data,IN_HOUSE(SENATE_OR_HOUSE))
 #table(named_data$SENATE_OR_HOUSE,useNA="ifany")
 ```
 
+```{r load_economic_data}
+folder = "state-legislative-data/Economic Data/"
+filename = "Nevada Annual Real Median Househod Income Data 1984-2017 BEA code MEHOINUSNVA672N.csv"
+path = paste(folder, filename,sep="")
+economic_data = read_csv(path) %>%
+  rename(INCOME = MEHOINUSNVA672N) %>%
+  mutate(YEAR = DATE)
+```
+
 ```{r}
 use_data = house_data %>%
   select(ELECTION_WINNER,
