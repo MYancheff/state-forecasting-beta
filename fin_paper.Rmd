@@ -15,6 +15,7 @@ IN_HOUSE = function(sen_or_house) sen_or_house == 9
 GUESS_DAY = function(day) ifelse(is.na(day),2,day)
 DEM_PARTY_CODE = 100
 REP_PARTY_CODE = 200
+is_dem = function(code) ifelse(code=="DEM",1,0)
 ```
 
 ```{r}
@@ -66,8 +67,8 @@ folder = "state-legislative-data/Economic Data/"
 filename = "Nevada Annual Real Median Househod Income Data 1984-2017 BEA code MEHOINUSNVA672N.csv"
 path = paste(folder, filename,sep="")
 economic_data = read_csv(path) %>%
-  rename(INCOME = MEHOINUSNVA672N) %>%
-  mutate(YEAR = DATE)
+  rename(MED_HOUSE_INCOME = MEHOINUSNVA672N) %>%
+  mutate(YEAR = as.integer(format(DATE,"%Y")))
 ```
 
 ```{r}
@@ -78,6 +79,8 @@ use_data = house_data %>%
          INCUMBENCY_DUMMY,
          CANIDATE_VOTE_TOTAL,
          DISTRICT_NUM)
+
+with_economic = left_join(use_data,economic_data,by=c("ELECTION_YEAR"="YEAR"))
 ```
 
 ```{r}
@@ -91,11 +94,20 @@ train_data = use_data %>%
   ungroup()
 
 pred_perc = lm(percent_vote ~ INCUMBENCY_DUMMY,data=train_data)
-
-
 ```
 
-
+```{r}
+with_economic %>%
+  filter(ELECTION_WINNER==1) %>%
+  group_by(ELECTION_YEAR) %>%
+  summarize(perc_seats_dem = sum(is_dem(party_code)),
+            MED_HOUSE_INCOME=mean(MED_HOUSE_INCOME)) %>%
+  mutate(perc_seats_dem = perc_seats_dem/perc_seats_dem[1],
+         MED_HOUSE_INCOME = MED_HOUSE_INCOME/MED_HOUSE_INCOME[12]) %>%
+  gather(Type,Val,-ELECTION_YEAR) %>%
+  ggplot(aes(x=ELECTION_YEAR,y=Val,col=Type))+geom_line()
+  
+```
 
 
 Road citation:
