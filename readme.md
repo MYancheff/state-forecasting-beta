@@ -21,5 +21,6 @@ Using these dependent and independent variables, we will produce forecasting mod
 Item | Date | Notes
 --- | --- | ---
 Wrangle precinct data | 4/12/17 | (only the data we have right now)
+Make some plots of data | 4/14/17 | The plots will probably be mainly economic and precinct relationships
 Poster Presentations | 5/7/2017 |
 Final Paper | 5/10/2017 | Final submission date
