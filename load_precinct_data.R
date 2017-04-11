@@ -41,25 +41,37 @@ filter_group = function(group_name,pdata){
 house_data = filter_group(house_name,prec_data)
 senate_data = filter_group(senate_name,prec_data)
 
-#precint_map = function(district_data){
-#  district_data %>%
-#    precint_
-#}
-#house_map = precint_map(house_data)
-#senate_map = precint_map(senate_data)
+precint_map = function(district_data){
+  district_data %>%
+    select(district_num,Precinct) %>%
+    group_by(Precinct) %>%
+    summarize(district_number=district_num[1]* (all(district_num==district_num[1])))
+}
+house_map = precint_map(house_data)
+senate_map = precint_map(senate_data)
 
 #table(prec_data$Contest)
 
-party_association = list(
-  c("GEORGE W. BUSH","REP"),
-  c("JOHN F. KERRY","DEM"),
-  c("McCain, John","REP"),
-  c("Obama, Barack","DEM"),
-  c("Romney, Mitt","REP"),
-  c("CLINTON, HILLARY","DEM"),
-  c("TRUMP, DONALD J.","REP")
+rep_list = c(
+  "GEORGE W. BUSH",
+  "McCain, John",
+  "Romney, Mitt",
+  "TRUMP, DONALD J."
 )
-transpose(party_association)
+dem_list = c(
+  "JOHN F. KERRY",
+  "Obama, Barack",
+  "CLINTON, HILLARY"
+)
+prec_data$Selection
+pres_data = prec_data %>%
+  filter(Contest == "President and Vice President of the United States") %>%
+  mutate(Party=ifelse(Selection %in% rep_list,"REP",
+                      ifelse(Selection %in% dem_list , "DEM","OTHER"))) %>%
+  left_join(house_map,by="Precinct") %>%
+  left_join(senate_map,by="Precinct") %>%
+  rename(house_district = district_num.x,
+         senate_district = district_num.y)
 
 table(prec_data$Contest)
 

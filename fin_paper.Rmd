@@ -12,7 +12,6 @@ library(lubridate)
 ```{r}
 IN_SENATE = function(sen_or_house) sen_or_house == 8
 IN_HOUSE = function(sen_or_house) sen_or_house == 9
-GUESS_DAY = function(day) ifelse(is.na(day),2,day)
 DEM_PARTY_CODE = 100
 REP_PARTY_CODE = 200
 is_dem = function(code) ifelse(code=="DEM",1,0)
@@ -48,8 +47,7 @@ named_data = data %>%
          INCUMBENCY_DUMMY=v22,
          CANIDATE_VOTE_TOTAL=v23,
          ELECTION_WINNER=v24) %>%
-  mutate(election_full_date = as.Date(ISOdate(ELECTION_YEAR,ELECTION_MONTH,GUESS_DAY(ELECTION_DAY))),
-         party_code = ifelse(PARTY_CODE_SIMPLIFIED == DEM_PARTY_CODE,"DEM",
+  mutate(party_code = ifelse(PARTY_CODE_SIMPLIFIED == DEM_PARTY_CODE,"DEM",
                            ifelse(PARTY_CODE_SIMPLIFIED == REP_PARTY_CODE,"REP",
                                                                            "OTHER")))
 
