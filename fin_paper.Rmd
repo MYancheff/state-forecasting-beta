@@ -23,7 +23,7 @@ data = read.dta("state-legislative-data/SLERs1967to2015_20160912b_NV.dta")
 
 tables = lapply(data,function(x)table(x,useNA="ifany"))
 info_densty = lapply(tables,dim)
-tables["v09z"]
+#tables["v09z"]
 
 
 named_data = data %>%
@@ -100,10 +100,10 @@ pred_perc = lm(percent_vote ~ INCUMBENCY_DUMMY,data=train_data)
 with_economic %>%
   filter(ELECTION_WINNER==1) %>%
   group_by(ELECTION_YEAR) %>%
-  summarize(perc_seats_dem = sum(is_dem(party_code)),
+  summarize(perc_seats_dem = sum(is_dem(party_code))/n(),
             MED_HOUSE_INCOME=mean(MED_HOUSE_INCOME)) %>%
-  mutate(perc_seats_dem = perc_seats_dem/perc_seats_dem[1],
-         MED_HOUSE_INCOME = MED_HOUSE_INCOME/MED_HOUSE_INCOME[12]) %>%
+  mutate(perc_seats_dem = perc_seats_dem,
+         MED_HOUSE_INCOME = MED_HOUSE_INCOME/MED_HOUSE_INCOME[12]/2) %>%
   gather(Type,Val,-ELECTION_YEAR) %>%
   ggplot(aes(x=ELECTION_YEAR,y=Val,col=Type))+geom_line()
   
