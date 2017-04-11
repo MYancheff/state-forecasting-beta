@@ -1,9 +1,9 @@
 ---
-title: "Note 1: Examining Precinct Level Data"
+  title: "Note 1: Examining Precinct Level Data"
 ---
-
-#Import Data
-library(readr)
+  
+  #Import Data
+  library(readr)
 PrecinctResults_2014 <- read_csv("Precinct Level Election Results/2014 General Election Results (CSV Format).csv")
 
 #Filter out rows not related to presidental, state legislative or governor results
@@ -56,11 +56,22 @@ named_data = data %>%
                              ifelse(PARTY_CODE_SIMPLIFIED == REP_PARTY_CODE,"REP",
                                     "OTHER"))) 
 
+#Subset 2014 General Election portion of named_data (which is the scope of PrecinctResults_2014Tidy) 
 general_election_data2014 = named_data %>%
   filter(ELECTION_TYPE=="G") %>%
   filter(ELECTION_YEAR == 2014) %>%
-  select(v02, countyname, ELECTION_YEAR, SENATE_OR_HOUSE, ALT_DISTRICT_NUM, CANIDATE_ID, v19, party_code, CANIDATE_VOTE_TOTAL, ELECTION_WINNER)   
+  select(v02, countyname, ELECTION_YEAR, SENATE_OR_HOUSE, ALT_DISTRICT_NUM, CANIDATE_ID, v19, v44, party_code, CANIDATE_VOTE_TOTAL, ELECTION_WINNER)   
 
-#table(house_data$election_full_date)
-#table(named_data$SENATE_OR_HOUSE,useNA="ifany")
+#Compare the total count of votes for candidate reported in general_election_data2014 to that in PrecinctResults_2014Tidy) 
+vote_total <- PrecinctResults_2014Tidy %>%
+  group_by(Contest, Selection) %>%
+  summarize(candidate_total = sum(Votes,na.rm = TRUE))
 
+#Found no significant differences between the version reported in Client Data and that reported in Precinct Result for 2014 (when mannually examning them side by side)
+#There is 1 disparity in name, but upon examination it's revealed to be an human error in the Client Data on candidate Loop, Marilyn Dondero who was accidentally imputted as DONDEROLOOP, MARILYN
+#When summing up the total votes for each candidate for a state legislative position, there is some disparity, but not neligible. The biggest difference is  50 votes. 
+#Client Data is consistent with that reported on the official website. 
+#Therefore, it's safe to conjecture that some of those votes came from precincts that didn't report its count in PrecinctResults_2014 (therefore Votes = NA)
+
+#Export csv file of tidied 2014 precinct data
+write.csv(PrecinctResults_2014Tidy, file = "2014 General Election Precinct-Level Results Tidied.csv")
