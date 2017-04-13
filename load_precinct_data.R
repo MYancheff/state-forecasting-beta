@@ -46,61 +46,44 @@ match_counties = function(let3) leg_counties[which(substring(leg_counties,1,3)==
 
 house_prec_data = prec_data %>%
   filter(is_assembly(house_name,Contest)) %>%
-  mutate(DIST_NUM = district_num(house_name,Contest))
-senate_data_2004_2010 = prec_data %>%
-  filter(is_assembly(senate_name,Contest),
-         Year < 2012) %>%
-  mutate(DIST_NAME = {
+  mutate(DIST_ID = as.character(district_num(house_name,Contest)),
+         ElectionType="HOUSE")
+
+all_senate_data = prec_data %>%
+  filter(is_assembly(senate_name,Contest)) %>%
+  mutate(ElectionType="SENATE")
+
+senate_data_2004_2010 = all_senate_data %>%
+  filter(Year < 2012) %>%
+  mutate(DIST_ID = {
           name_3_letters = substring(Contest,nchar(senate_name)+3,nchar(senate_name)+5)
-          toupper(Vectorize(match_counties)(name_3_letters))
-        },
-        DIST_NUM = {
+          dist_name = toupper(Vectorize(match_counties)(name_3_letters))
+          
           num_na = district_num(senate_name,Contest)
           # if district_num returns an NA, then it is the first district in the county
-          ifelse(is.na(num_na),1,num_na)
+          dist_num = ifelse(is.na(num_na),1,num_na)
+          paste(dist_name,dist_num,sep="")
         })
 
-senate_data_2012 = prec_data %>%
-  filter(is_assembly(senate_name,Contest),
-         Year >= 2012) %>%
-  mutate(DIST_NUM = district_num(senate_name,Contest))
-  
-get_num_map = function(num_data){
-  num_map = num_data %>%
-    select(DIST_NUM,UniquePrecinct) %>%
-    group_by(UniquePrecinct) %>%
-    summarize(DIST_NUMBER=DIST_NUM[1],
-              is_consistent = all(DIST_NUM == DIST_NUMBER))
-  # if it precincts do not consistently map to districts, something is very wrong
-  # # find out what precincts are bad
-  #tab = data.frame(table(num_map$is_consistent,num_map$UniquePrecinct)) %>%
-  #  filter(Var1==FALSE,
-  #         Freq!=0)
-  #write(as.character(tab$Var2),"badprecincts3.txt")
-  stopifnot(sum(num_map$is_consistent) > 8)
-  num_map
-}
-
-house_map_2004_2010 = house_prec_data %>%
-  filter(Year < 2012) %>%
-  get_num_map()
-house_map_2012 = house_prec_data %>%
+senate_data_2012 = all_senate_data %>%
   filter(Year >= 2012) %>%
-  get_num_map()
-#filter(house_prec_data,UniquePrecinct=="2 - CALIENTE Lincoln 2016") 
-#filter(house_prec_data,UniquePrecinct=="Precinct 8 Humboldt 2008") 
-senate_map_2012 = get_num_map(senate_data_2012)
-senate_map_2004_2010 = {
-  num_name_map = senate_data_2004_2010 %>%
-  select(DIST_NUM,DIST_NAME,UniquePrecinct) %>%
-  group_by(UniquePrecinct) %>%
-  summarize(DIST_NUMBER=DIST_NUM[1],
-            DISTRICT_NAME=DIST_NAME[1],
-            is_consistent = all(DIST_NUM == DIST_NUMBER & DISTRICT_NAME == DIST_NAME))
-  # if it precincts do not consistently map to districts, something is very wrong
-  stopifnot(all(num_name_map$is_consistent))
-  num_name_map
-}
+  mutate(DIST_ID = as.character(district_num(senate_name,Contest)))
+  
+
+district_data = rbind(house_prec_data,senate_data_2004_2010,senate_data_2012)
+
+district_map = district_data %>%
+  group_by(ElectionType,UniquePrecinct) %>%
+  summarize(DISTRICT_ID=DIST_ID[1],
+            is_consistent = all(DISTRICT_ID == DIST_ID)) %>%
+  ungroup()
+# if it precincts do not consistently map to districts, something is very wrong
+# # find out what precincts are bad
+#tab = data.frame(table(num_map$is_consistent,num_map$UniquePrecinct)) %>%
+#  filter(Var1==FALSE,
+#         Freq!=0)
+#write(as.character(tab$Var2),"badprecincts3.txt")
+stopifnot(sum(!district_map$is_consistent) < 12)
 
 rep_list = c(
   "GEORGE W. BUSH",
@@ -113,30 +96,28 @@ dem_list = c(
   "Obama, Barack",
   "CLINTON, HILLARY"
 )
+get_pres_party = function(pres_name){
+  ifelse(pres_name %in% rep_list,"REP",
+         ifelse(pres_name %in% dem_list , "DEM","OTHER"))
+}
 
-pres_data = prec_data %>%
-  filter(Contest == "President and Vice President of the United States") %>%
-  mutate(Party=ifelse(Selection %in% rep_list,"REP",
-                      ifelse(Selection %in% dem_list , "DEM","OTHER")))
+pres_contest_name = "President and Vice President of the United States"
 
-pres_data_2004_2010 = filter(pres_data,Year < 2012)
-pres_data_2012 = filter(pres_data,Year >= 2012)
-
-pres_summary_house_2004_2010 = pres_data_2004_2010 %>%
-  left_join(house_map_2004_2010,by="Precinct") %>%
-  group_by(DIST_NUMBER,Selection) %>%
+pres_summary = prec_data %>%
+  filter(Contest == pres_contest_name)  %>%
+  left_join(district_map,by="UniquePrecinct") %>%
+  group_by(Year,ElectionType,DISTRICT_ID,Selection) %>%
   summarise(vote_count = sum(Votes),
-            Party = Party[1]) %>%
-  summarise(percent_dem = sum(ifelse(Party=="DEM",vote_count,0))/sum(vote_count))
-  
-  left_join(house_map,by="Precinct") %>%
-  left_join(senate_map,by="Precinct") %>%
-  rename(house_district = district_number.x,
-         senate_district = district_number.y)
+            Party = get_pres_party(Selection[1])) %>%
+  summarise(vote_dem = sum(ifelse(Party=="DEM",vote_count,0)),
+            percent_dem = vote_dem/sum(vote_count)) %>%
+  ungroup()
 
-table(pres_data$senate_district,useNA="ifany")
-table(pres_data$house_district,useNA="ifany")
-table(senate_map$district_number,useNA="ifany")
+filter(pres_summary,is.na(ElectionType))
+
+ggplot(pres_summary,aes(x=Year,y=percent_dem,col=DISTRICT_ID)) +
+  facet_grid(~ElectionType) + 
+  geom_line()
 
 ##############################################
 # Road data
