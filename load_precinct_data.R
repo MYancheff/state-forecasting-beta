@@ -20,7 +20,9 @@ load_file = function(filename){
 
 prec_files = lapply(all_paths,load_file)
 with_years = mapply(function(df,year){mutate(df,Year=year)},prec_files,all_years,SIMPLIFY=FALSE)
-prec_data = rbindlist(with_years)
+prec_data = rbindlist(with_years) %>%
+  mutate(Votes = ifelse(is.na(Votes),0,Votes),
+         UniquePrecinct = paste(Precinct,Jurisdiction,Year))
 #table(prec_data$Year)
 
 house_name = "State Assembly"
@@ -65,35 +67,38 @@ senate_data_2012 = prec_data %>%
   
 get_num_map = function(num_data){
   num_map = num_data %>%
-    select(DIST_NUM,Precinct) %>%
-    group_by(Precinct) %>%
+    select(DIST_NUM,UniquePrecinct) %>%
+    group_by(UniquePrecinct) %>%
     summarize(DIST_NUMBER=DIST_NUM[1],
               is_consistent = all(DIST_NUM == DIST_NUMBER))
   # if it precincts do not consistently map to districts, something is very wrong
   # # find out what precincts are bad
-  #tab = data.frame(table(num_map$is_consistent,num_map$Precinct)) %>%
+  #tab = data.frame(table(num_map$is_consistent,num_map$UniquePrecinct)) %>%
   #  filter(Var1==FALSE,
   #         Freq!=0)
   #write(as.character(tab$Var2),"badprecincts3.txt")
-  #stopifnot(all(num_map$is_consistent))
+  stopifnot(sum(num_map$is_consistent) > 8)
   num_map
 }
+
 house_map_2004_2010 = house_prec_data %>%
   filter(Year < 2012) %>%
   get_num_map()
 house_map_2012 = house_prec_data %>%
   filter(Year >= 2012) %>%
   get_num_map()
+#filter(house_prec_data,UniquePrecinct=="2 - CALIENTE Lincoln 2016") 
+#filter(house_prec_data,UniquePrecinct=="Precinct 8 Humboldt 2008") 
 senate_map_2012 = get_num_map(senate_data_2012)
 senate_map_2004_2010 = {
   num_name_map = senate_data_2004_2010 %>%
-  select(DIST_NUM,DIST_NAME,Precinct) %>%
-  group_by(Precinct) %>%
+  select(DIST_NUM,DIST_NAME,UniquePrecinct) %>%
+  group_by(UniquePrecinct) %>%
   summarize(DIST_NUMBER=DIST_NUM[1],
             DISTRICT_NAME=DIST_NAME[1],
             is_consistent = all(DIST_NUM == DIST_NUMBER & DISTRICT_NAME == DIST_NAME))
   # if it precincts do not consistently map to districts, something is very wrong
-  #stopifnot(all(num_name_map$is_consistent))
+  stopifnot(all(num_name_map$is_consistent))
   num_name_map
 }
 
@@ -120,7 +125,9 @@ pres_data_2012 = filter(pres_data,Year >= 2012)
 pres_summary_house_2004_2010 = pres_data_2004_2010 %>%
   left_join(house_map_2004_2010,by="Precinct") %>%
   group_by(DIST_NUMBER,Selection) %>%
-  summarise(vote_count = sum(Votes)) %>%
+  summarise(vote_count = sum(Votes),
+            Party = Party[1]) %>%
+  summarise(percent_dem = sum(ifelse(Party=="DEM",vote_count,0))/sum(vote_count))
   
   left_join(house_map,by="Precinct") %>%
   left_join(senate_map,by="Precinct") %>%
