@@ -22,7 +22,7 @@ data = read.dta("state-legislative-data/SLERs1967to2015_20160912b_NV.dta")
 
 tables = lapply(data,function(x)table(x,useNA="ifany"))
 info_densty = lapply(tables,dim)
-#tables["v09z"]
+tables["v09z"]
 
 
 named_data = data %>%
@@ -55,7 +55,10 @@ general_election_data = named_data %>%
   filter(ELECTION_DETERMINES_SITTING_LEG==1)
 
 house_data = filter(general_election_data,IN_HOUSE(SENATE_OR_HOUSE))
+senate_data = filter(general_election_data,IN_SENATE(SENATE_OR_HOUSE))
 
+#table(senate_data$DISTRICT_TYPE)
+#table(senate_data$DISTRICT_NAME,senate_data$DISTRICT_NUM,useNA="ifany")
 #table(house_data$election_full_date)
 #table(named_data$SENATE_OR_HOUSE,useNA="ifany")
 ```
@@ -107,6 +110,12 @@ with_economic %>%
   
 ```
 
+```{r}
+senate_data %>%
+  filter(ELECTION_YEAR > 2012) %>%
+  select(ALT_DISTRICT_NUM,DISTRICT_NAME) %>%
+  unique()
+```
 
 Road citation:
 
