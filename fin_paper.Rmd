@@ -101,9 +101,10 @@ economic_data <- GDPperCapita_US %>%
 ```
 
 ```{r join econ with voting data}
-use_data = house_data %>%
+use_data = general_election_data %>%
   select(ELECTION_WINNER,
          ELECTION_YEAR,
+         SENATE_OR_HOUSE,
          party_code,
          INCUMBENCY_DUMMY,
          CANIDATE_VOTE_TOTAL,
@@ -114,15 +115,27 @@ with_economic = economic_data %>% left_join(use_data, by=c("YEAR"="ELECTION_YEAR
 ```
 
 ```{r graph}
-with_economic %>%
+#Calculate percentage of house captured by Democrats during a Given Year's General Election
+with_economic <- with_economic %>%
   filter(ELECTION_WINNER==1) %>%
-  group_by(YEAR) %>%
-  summarize(perc_seats_dem = sum(is_dem(party_code))/n(),
-            MED_HOUSE_INCOME =mean(MED_HOUSE_INCOME)) %>%
-  mutate(perc_seats_dem = perc_seats_dem,
-         MED_HOUSE_INCOME = MED_HOUSE_INCOME/MED_HOUSE_INCOME[12]/2) %>%
-  gather(Type,Val,-ELECTION_YEAR) %>%
-  ggplot(aes(x=ELECTION_YEAR,y=Val,col=Type))+geom_line()
+  group_by(YEAR, SENATE_OR_HOUSE) %>%
+  mutate(perc_seats_dem = sum(is_dem(party_code))/n()) %>%
+  select(YEAR, SENATE_OR_HOUSE, GDPperCapita_CHANGE_US, MHI_Change_LOCAL,
+         MHI_Change_US, Unemployment_LOCAL, perc_seats_dem)
+
+#Tidy df so that we can graph data on a 2 dimensional plane 
+#Exclude unemployment rate (it stretches te y-axis scale too far to capture insights on
+                          # the correlating patterns between voting and economic data)
+with_economic_Tidied1 <- with_economic %>% gather(Type,Val,-YEAR, -SENATE_OR_HOUSE, 
+                                                  -Unemployment_LOCAL)
+#Visualize 
+graph1 <- ggplot(with_economic_Tidied1,aes(x=YEAR, y=Val, col=Type)) + 
+  geom_line() + 
+  facet_wrap(~SENATE_OR_HOUSE)
+
+#Tidy a separate df by gathering just Unemployment_Local  and perc_seats_dem under Type
+with_economic_Tidied2 <- with_economic %>% gather(key = Type, value = Percent, 
+                                                  Unemployment_LOCAL, perc_seats_dem)
 ```
 
 ```{r}
