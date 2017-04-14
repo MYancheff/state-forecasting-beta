@@ -64,15 +64,43 @@ senate_data = filter(general_election_data,IN_SENATE(SENATE_OR_HOUSE))
 ```
 
 ```{r load_economic_data}
+#Import Nevada Data of Annual Median Household Income (Aggregated) 1984-2016
 folder = "state-legislative-data/Economic Data/"
 filename = "Nevada Annual Real Median Househod Income Data 1984-2017 BEA code MEHOINUSNVA672N.csv"
 path = paste(folder, filename,sep="")
-economic_data = read_csv(path) %>%
+AggregateMedianIncomeData_Nevada = read_csv(path) %>%
   rename(MED_HOUSE_INCOME = MEHOINUSNVA672N) %>%
   mutate(YEAR = as.integer(format(DATE,"%Y")))
+
+#Import Nevada Data on % Change of Annual Median Household Income (Marginal) 1984-2016
+MedianIncomeData_Nevada = read_csv("state-legislative-data/Economic Data/Nevada Percent Change in Annual Real Median Househod Income Data 1984-2016.csv") %>%
+  rename(MHI_Change_LOCAL = MEHOINUSNVA672N_PCH) %>%
+  mutate(YEAR = as.integer(format(DATE,"%Y")))
+
+#Import Nevada's Annual Unemployment Rate Data 1976-2016 
+Unemployment_Nevada <- read_csv("state-legislative-data/Economic data/Nevada Annual Unemployment Rate 1976-2016.csv") %>% 
+  rename(Unemployment_LOCAL = NVUR) %>%
+  mutate(YEAR = as.integer(format(DATE,"%Y")))
+
+#Import National Data on % Change of Annual Median houseHold Income 1984-2016
+MedianIncomeData_US <- read_csv("state-legislative-data/Economic data/US National-Level Percent Change in Annual Real Median Household Income 1984-2016.csv") %>% 
+  rename(MHI_Change_US = MEHOINUSA672N_PCH) %>%
+  mutate(YEAR = as.integer(format(DATE,"%Y")))
+
+#Import National Data on Percent Change of Annual Real GDP/Capita 1948-2016
+GDPperCapita_US <- read_csv("state-legislative-data/Economic data/US National-Level Percent Change in Annual Real GDP per Capita 1948-2016.csv") %>% 
+  rename(GDPperCapita_CHANGE_US = A939RX0Q048SBEA_PCH) %>%
+  mutate(YEAR = as.integer(format(DATE,"%Y")))
+
+#Join the Previous 4 Data Fragments Together into one Frame  (labeled Economic Data)
+economic_data <- GDPperCapita_US %>%
+  left_join(MedianIncomeData_Nevada, by=c("YEAR" = "YEAR")) %>%
+  left_join(MedianIncomeData_US, by=c("YEAR" = "YEAR")) %>%
+  left_join(Unemployment_Nevada, by=c("YEAR" = "YEAR")) %>%
+  select(3, 2, 5, 7, 9)
 ```
 
-```{r}
+```{r join econ with voting data}
 use_data = house_data %>%
   select(ELECTION_WINNER,
          ELECTION_YEAR,
@@ -81,7 +109,20 @@ use_data = house_data %>%
          CANIDATE_VOTE_TOTAL,
          DISTRICT_NUM)
 
-with_economic = left_join(use_data,economic_data,by=c("ELECTION_YEAR"="YEAR"))
+with_economic = economic_data %>% left_join(use_data, by=c("YEAR"="ELECTION_YEAR"))
+#left_join(use_data, economic_data ,by=c("ELECTION_YEAR"="YEAR"))
+```
+
+```{r graph}
+with_economic %>%
+  filter(ELECTION_WINNER==1) %>%
+  group_by(YEAR) %>%
+  summarize(perc_seats_dem = sum(is_dem(party_code))/n(),
+            MED_HOUSE_INCOME =mean(MED_HOUSE_INCOME)) %>%
+  mutate(perc_seats_dem = perc_seats_dem,
+         MED_HOUSE_INCOME = MED_HOUSE_INCOME/MED_HOUSE_INCOME[12]/2) %>%
+  gather(Type,Val,-ELECTION_YEAR) %>%
+  ggplot(aes(x=ELECTION_YEAR,y=Val,col=Type))+geom_line()
 ```
 
 ```{r}
@@ -97,18 +138,6 @@ train_data = use_data %>%
 pred_perc = lm(percent_vote ~ INCUMBENCY_DUMMY,data=train_data)
 ```
 
-```{r}
-with_economic %>%
-  filter(ELECTION_WINNER==1) %>%
-  group_by(ELECTION_YEAR) %>%
-  summarize(perc_seats_dem = sum(is_dem(party_code))/n(),
-            MED_HOUSE_INCOME=mean(MED_HOUSE_INCOME)) %>%
-  mutate(perc_seats_dem = perc_seats_dem,
-         MED_HOUSE_INCOME = MED_HOUSE_INCOME/MED_HOUSE_INCOME[12]/2) %>%
-  gather(Type,Val,-ELECTION_YEAR) %>%
-  ggplot(aes(x=ELECTION_YEAR,y=Val,col=Type))+geom_line()
-  
-```
 
 ```{r}
 senate_data %>%
