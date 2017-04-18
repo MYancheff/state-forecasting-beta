@@ -1,0 +1,113 @@
+---
+title: "Final Project Visualization"
+author: "Thao Dinh and Ben Black"
+date: "April 18, 2017"
+output: html_document
+---
+
+```{r}
+library(foreign)
+library(tidyverse)
+library(lubridate)
+```
+
+```{r function}
+IN_SENATE = function(sen_or_house) sen_or_house == 8
+IN_HOUSE = function(sen_or_house) sen_or_house == 9
+DEM_PARTY_CODE = 100
+REP_PARTY_CODE = 200
+is_dem = function(code) ifelse(code=="DEM",1,0)
+```
+
+```{r import}
+data = read.dta("state-legislative-data/SLERs1967to2015_20160912b_NV.dta")
+```
+
+```{r tidy}
+tables = lapply(data,function(x)table(x,useNA="ifany"))
+info_densty = lapply(tables,dim)
+tables["v09z"]
+
+
+named_data = data %>%
+  rename(ELECTION_YEAR=v05,
+         ELECTION_MONTH=v06,
+         ELECTION_DAY=v06b,
+         SENATE_OR_HOUSE=v07,
+         DISTRICT_NAME=v08,
+         ALT_DISTRICT_NAME=v08z,
+         DISTRICT_NUM=v09,
+         ALT_DISTRICT_NUM=v09z,
+         DISTRICT_TYPE=v12,
+         NUM_WINNERS_FOR_POS=v13,
+         TERM_LENGTH_BY_LAW=v14,
+         TERM_LENGTH_ACTUAL=v15,
+         ELECTION_TYPE=v16,
+         ELECTION_DETERMINES_SITTING_LEG=v17,
+         ELECTION_DETERMINES_SITTING_LEG_GEN=v17b,
+         CANIDATE_ID=v18,
+         PARTY_CODE_DETAILED=v20,
+         PARTY_CODE_SIMPLIFIED=v21,
+         INCUMBENCY_DUMMY=v22,
+         CANIDATE_VOTE_TOTAL=v23,
+         ELECTION_WINNER=v24) %>%
+  mutate(party_code = ifelse(PARTY_CODE_SIMPLIFIED == DEM_PARTY_CODE,"DEM",
+                           ifelse(PARTY_CODE_SIMPLIFIED == REP_PARTY_CODE,"REP",
+                                                                           "OTHER")))
+
+general_election_data = named_data %>%
+  filter(ELECTION_DETERMINES_SITTING_LEG==1)
+
+house_data = filter(general_election_data,IN_HOUSE(SENATE_OR_HOUSE))
+senate_data = filter(general_election_data,IN_SENATE(SENATE_OR_HOUSE))
+
+#table(senate_data$DISTRICT_TYPE)
+#table(senate_data$DISTRICT_NAME,senate_data$DISTRICT_NUM,useNA="ifany")
+#table(house_data$election_full_date)
+#table(named_data$SENATE_OR_HOUSE,useNA="ifany")
+```
+
+```{r load_economic_data}
+#Import Nevada Data on % Change of Annual Median Household Income (Marginal) 1984-2016
+MedianIncomeData_Nevada = read_csv("state-legislative-data/Economic Data/Nevada Percent Change in Annual Real Median Househod Income Data 1984-2016.csv") %>%
+  rename(MHI_Change_LOCAL = MEHOINUSNVA672N_PCH) %>%
+  mutate(YEAR = as.integer(format(DATE,"%Y")))
+
+#Import Nevada's Annual Unemployment Rate Data 1976-2016 
+Unemployment_Nevada <- read_csv("state-legislative-data/Economic data/Nevada Annual Unemployment Rate 1976-2016.csv") %>% 
+  rename(Unemployment_LOCAL = NVUR) %>%
+  mutate(YEAR = as.integer(format(DATE,"%Y")))
+
+#Join the Previous 4 Data Fragments Together into one Frame  (labeled Economic Data)
+economic_data <- Unemployment_Nevada %>%
+  left_join(MedianIncomeData_Nevada, by=c("YEAR" = "YEAR")) %>%
+  select(3, 2, 5)
+```
+
+```{r join econ with voting data}
+use_data = general_election_data %>%
+  select(ELECTION_WINNER,
+         ELECTION_YEAR,
+         SENATE_OR_HOUSE,
+         party_code,
+         INCUMBENCY_DUMMY,
+         CANIDATE_VOTE_TOTAL,
+         DISTRICT_NUM)
+
+use_data$ELECTION_YEAR <- as.integer(use_data$ELECTION_YEAR)
+
+with_economic = use_data %>% full_join(economic_data, by=c("ELECTION_YEAR"="YEAR")) %>%
+  filter(ELECTION_WINNER==1) %>%
+  group_by(ELECTION_YEAR, SENATE_OR_HOUSE) %>%
+  mutate(perc_seats_dem = sum(is_dem(party_code))/n())
+
+with_economic_Tidied <- with_economic %>% gather(key = Type, value = Percent, 
+                                                 Unemployment_LOCAL, MHI_Change_LOCAL, 
+                                                 perc_seats_dem)
+```
+
+```{r visualize econ data}
+g1 <- ggplot(with_economic_Tidied, aes(x = ELECTION_YEAR, y = Percent, col = Type)) +
+  geom_line()
+
+```
