@@ -98,7 +98,7 @@ use_dataECON = general_election_data %>%
   group_by(ELECTION_YEAR, SENATE_OR_HOUSE) %>%
   summarize(perc_seats_dem = sum(is_dem(party_code))/n())
 
-use_data$ELECTION_YEAR <- as.integer(use_data$ELECTION_YEAR)
+use_dataECON$ELECTION_YEAR <- as.integer(use_dataECON$ELECTION_YEAR)
 
 with_economic = use_dataECON %>% full_join(economic_data, by=c("ELECTION_YEAR"="YEAR"))
 
