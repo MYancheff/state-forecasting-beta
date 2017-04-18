@@ -9,6 +9,7 @@ output: html_document
 library(foreign)
 library(tidyverse)
 library(lubridate)
+library(ggplot2)
 ```
 
 ```{r function}
@@ -85,21 +86,21 @@ economic_data <- Unemployment_Nevada %>%
 ```
 
 ```{r join econ with voting data}
-use_data = general_election_data %>%
+use_dataECON = general_election_data %>%
   select(ELECTION_WINNER,
          ELECTION_YEAR,
          SENATE_OR_HOUSE,
          party_code,
          INCUMBENCY_DUMMY,
          CANIDATE_VOTE_TOTAL,
-         DISTRICT_NUM)
+         DISTRICT_NUM) %>%
+  filter(ELECTION_WINNER==1) %>%
+  group_by(ELECTION_YEAR, SENATE_OR_HOUSE) %>%
+  summarize(perc_seats_dem = sum(is_dem(party_code))/n())
 
 use_data$ELECTION_YEAR <- as.integer(use_data$ELECTION_YEAR)
 
-with_economic = use_data %>% full_join(economic_data, by=c("ELECTION_YEAR"="YEAR")) %>%
-  filter(ELECTION_WINNER==1) %>%
-  group_by(ELECTION_YEAR, SENATE_OR_HOUSE) %>%
-  mutate(perc_seats_dem = sum(is_dem(party_code))/n())
+with_economic = use_dataECON %>% full_join(economic_data, by=c("ELECTION_YEAR"="YEAR"))
 
 with_economic_Tidied <- with_economic %>% gather(key = Type, value = Percent, 
                                                  Unemployment_LOCAL, MHI_Change_LOCAL, 
@@ -107,7 +108,12 @@ with_economic_Tidied <- with_economic %>% gather(key = Type, value = Percent,
 ```
 
 ```{r visualize econ data}
-g1 <- ggplot(with_economic_Tidied, aes(x = ELECTION_YEAR, y = Percent, col = Type)) +
+#Plot visualization of Nevada's economic conditions and perc
+g1 <- ggplot(with_economic_Tidied, aes(x = ELECTION_YEAR, y = Percent, col = Type)) + 
   geom_line()
+g1
 
+g2 <-ggplot(with_economic, aes(x=perc_seats_dem, y=MHI_Change_LOCAL)) +
+  geom_jitter(aes(col = ELECTION_YEAR))
+g2  
 ```
