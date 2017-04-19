@@ -118,7 +118,7 @@ pres_summary = prec_data %>%
             total_vote = sum(vote_count)) %>%
   ungroup() %>%
   mutate(ELECTION_ID = paste(DISTRICT_ID,ElectionType,Year)) %>%
-  mutate(SEP_DIST_ID=paste(DISTRICT_ID,ifelse(Year >= 2012,"_2012","_2010")))
+  mutate(SEP_DIST_ID=paste(DISTRICT_ID,ElectionType,ifelse(Year >= 2012,"_2012","_2010")))
 
 
 #out_district_data = district_data %>%

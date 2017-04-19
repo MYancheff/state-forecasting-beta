@@ -202,16 +202,20 @@ source("load_precinct_data.R")
 
 ```{r join_prec}
 
-pres_summary%>%
-  summarize()
+ggplot(with_economic,aes(x=ELECTION_YEAR,y=perc_seats_dem)) +
+  geom_line() + 
+  geom_line(data=pres_summary,mapping=aes(x=Year,y=percent_dem,col=SEP_DIST_ID)) +
+ theme(legend.position="none")
+#pres_summary%>%
+#  summarize()
 
-pres_use = vote_ratio_data %>%
-  mutate(ElectionID = paste(DistrictId,
-                            ifelse(IN_HOUSE(SENATE_OR_HOUSE),"HOUSE","SENATE"),
-                            ELECTION_YEAR))
+#pres_use = vote_ratio_data %>%
+#  mutate(ElectionID = paste(DistrictId,
+#                            ifelse(IN_HOUSE(SENATE_OR_HOUSE),"HOUSE","SENATE"),
+#                            ELECTION_YEAR))
 
-join_data = pres_summary %>%
-  inner_join(pres_use, by=c("ELECTION_ID" = "ElectionID"))
+#join_data = pres_summary %>%
+#  inner_join(pres_use, by=c("ELECTION_ID" = "ElectionID"))
 ```
 
 
