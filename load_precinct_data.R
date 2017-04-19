@@ -114,15 +114,26 @@ pres_summary = prec_data %>%
   summarise(vote_count = sum(Votes),
             Party = get_pres_party(Selection[1])) %>%
   summarise(vote_dem = sum(ifelse(Party=="DEM",vote_count,0)),
-            percent_dem = vote_dem/sum(vote_count)) %>%
-  ungroup() # %>%
-  #mutate(SEP_DIST_ID=paste(DISTRICT_ID,ifelse(Year >= 2012,"_2012","_2010")))
-         
+            percent_dem = vote_dem/sum(vote_count),
+            total_vote = sum(vote_count)) %>%
+  ungroup() %>%
+  mutate(ELECTION_ID = paste(DISTRICT_ID,ElectionType,Year)) %>%
+  mutate(SEP_DIST_ID=paste(DISTRICT_ID,ifelse(Year >= 2012,"_2012","_2010")))
+
+
+#out_district_data = district_data %>%
+#  group_by(Year,ElectionType,DISTRICT_ID,Selection) %>%
+  
 #filter(pres_summary,is.na(ElectionType))
 
-#ggplot(pres_summary,aes(x=Year,y=percent_dem,col=SEP_DIST_ID)) +
-#  facet_grid(~ElectionType) + 
-#  geom_line()
+pres_total = pres_summary %>%
+  group_by(Year) %>%
+  summarise(percent_dem = sum(vote_dem)/sum(total_vote))
+
+ggplot(pres_summary,aes(x=Year,y=percent_dem)) +
+  facet_grid(~ElectionType) + 
+  geom_line(aes(col=SEP_DIST_ID)) + 
+  geom_line(data=pres_total,mapping=aes(x=Year,y=percent_dem))
 
 ##############################################
 # Road data

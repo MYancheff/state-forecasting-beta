@@ -56,7 +56,11 @@ named_data = data %>%
          ELECTION_WINNER=v24) %>%
   mutate(party_code = ifelse(PARTY_CODE_SIMPLIFIED == DEM_PARTY_CODE,"DEM",
                            ifelse(PARTY_CODE_SIMPLIFIED == REP_PARTY_CODE,"REP",
-                                                                           "OTHER")))
+                                                                           "OTHER")),
+         DistrictId = paste(ifelse(is.na(DISTRICT_NAME),"",DISTRICT_NAME),
+                            ifelse(is.na(DISTRICT_NUM),1,DISTRICT_NUM),sep=""))
+
+#table(named_data$DistrictId)
 
 general_election_data = named_data %>%
   filter(ELECTION_DETERMINES_SITTING_LEG==1)
@@ -95,7 +99,8 @@ use_dataECON = general_election_data %>%
          party_code,
          INCUMBENCY_DUMMY,
          CANIDATE_VOTE_TOTAL,
-         DISTRICT_NUM) %>%
+         DISTRICT_NUM,
+         DistrictId) %>%
   filter(ELECTION_WINNER==1,
          IN_HOUSE(SENATE_OR_HOUSE)) %>%
   group_by(ELECTION_YEAR, SENATE_OR_HOUSE) %>%
@@ -170,13 +175,12 @@ vote_ratio_data <- general_election_data %>%
          party_code,
          INCUMBENCY_DUMMY,
          CANIDATE_VOTE_TOTAL,
-         DISTRICT_NUM) %>%
-  group_by(ELECTION_YEAR, SENATE_OR_HOUSE, DISTRICT_NUM) %>%
+         DistrictId) %>%
+  group_by(ELECTION_YEAR, SENATE_OR_HOUSE, DistrictId) %>%
   summarise(perc_vote_WINNER = max(CANIDATE_VOTE_TOTAL)/sum(CANIDATE_VOTE_TOTAL),
             incumbent_present = sum(INCUMBENCY_DUMMY),
             incumbent_won = sum(INCUMBENCY_DUMMY * CANIDATE_VOTE_TOTAL) == max(CANIDATE_VOTE_TOTAL)) %>%
-  filter(perc_vote_WINNER != 1.00, 
-         DISTRICT_NUM >= 1) %>%
+  filter(perc_vote_WINNER != 1.00) %>%
   mutate(incumbent_present = ifelse(incumbent_won,"Incumbent Won",
                                     ifelse(incumbent_present >= 1, "Incumbent Lost",
                                     "Open Seat Election")))
@@ -198,8 +202,16 @@ source("load_precinct_data.R")
 
 ```{r join_prec}
 
+pres_summary%>%
+  summarize()
 
+pres_use = vote_ratio_data %>%
+  mutate(ElectionID = paste(DistrictId,
+                            ifelse(IN_HOUSE(SENATE_OR_HOUSE),"HOUSE","SENATE"),
+                            ELECTION_YEAR))
 
+join_data = pres_summary %>%
+  inner_join(pres_use, by=c("ELECTION_ID" = "ElectionID"))
 ```
 
 
