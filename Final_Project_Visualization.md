@@ -1,20 +1,43 @@
----
-title: "Final Project Visualization"
-author: "Thao Dinh and Ben Black"
-date: "April 18, 2017"
-output: github_document
----
+Final Project Visualization
+================
+Thao Dinh and Ben Black
+April 18, 2017
 
-```{r}
+``` r
 library(foreign)
 library(tidyverse)
+```
+
+    ## Loading tidyverse: ggplot2
+    ## Loading tidyverse: tibble
+    ## Loading tidyverse: tidyr
+    ## Loading tidyverse: readr
+    ## Loading tidyverse: purrr
+    ## Loading tidyverse: dplyr
+
+    ## Conflicts with tidy packages ----------------------------------------------
+
+    ## filter(): dplyr, stats
+    ## lag():    dplyr, stats
+
+``` r
 library(lubridate)
+```
+
+    ## 
+    ## Attaching package: 'lubridate'
+
+    ## The following object is masked from 'package:base':
+    ## 
+    ##     date
+
+``` r
 library(ggplot2)
 library(gtable)
 library(grid)
 ```
 
-```{r function}
+``` r
 IN_SENATE = function(sen_or_house) sen_or_house == 8
 IN_HOUSE = function(sen_or_house) sen_or_house == 9
 DEM_PARTY_CODE = 100
@@ -22,16 +45,26 @@ REP_PARTY_CODE = 200
 is_dem = function(code) ifelse(code=="DEM",1,0)
 ```
 
-```{r import}
+``` r
 data = read.dta("state-legislative-data/SLERs1967to2015_20160912b_NV.dta")
 ```
 
-```{r tidy}
+``` r
 tables = lapply(data,function(x)table(x,useNA="ifany"))
 info_densty = lapply(tables,dim)
 tables["v09z"]
+```
 
+    ## $v09z
+    ## x
+    ##    1    2    3    4    5    6    7    8    9   10   11   12   13   14   15 
+    ##  207  130  176  129  106   74   84   80   68   66   50   58   60   67   57 
+    ##   16   17   18   19   20   21   22   23   24   25   26   27   28   29   30 
+    ##   58   55   47   55   55   57   53   40   50   41   55   54   47   51   52 
+    ##   31   32   33   34   35   36   37   38   39   40   41   42 <NA> 
+    ##   49   73   39   43   42   48   47   53   52   57   43   37  102
 
+``` r
 named_data = data %>%
   rename(ELECTION_YEAR=v05,
          ELECTION_MONTH=v06,
@@ -73,25 +106,44 @@ senate_data = filter(general_election_data,IN_SENATE(SENATE_OR_HOUSE))
 #table(house_data$election_full_date)
 #table(named_data$SENATE_OR_HOUSE,useNA="ifany")
 ```
-#Plot Trends between Nevada's Economic Conditions and Legislative Election's Results
-```{r load_economic_data}
+
+Plot Trends between Nevada's Economic Conditions and Legislative Election's Results
+===================================================================================
+
+``` r
 #Import Nevada Data on % Change of Annual Median Household Income (Marginal) 1984-2016
 MedianIncomeData_Nevada = read_csv("state-legislative-data/Economic Data/Nevada Percent Change in Annual Real Median Househod Income Data 1984-2016.csv") %>%
   rename(MHI_Change_LOCAL = MEHOINUSNVA672N_PCH) %>%
   mutate(YEAR = as.integer(format(DATE,"%Y")))
+```
 
+    ## Parsed with column specification:
+    ## cols(
+    ##   DATE = col_date(format = ""),
+    ##   MEHOINUSNVA672N_PCH = col_double()
+    ## )
+
+``` r
 #Import Nevada's Annual Unemployment Rate Data 1976-2016 
 Unemployment_Nevada <- read_csv("state-legislative-data/Economic data/Nevada Annual Unemployment Rate 1976-2016.csv") %>% 
   rename(Unemployment_LOCAL = NVUR) %>%
   mutate(YEAR = as.integer(format(DATE,"%Y")))
+```
 
+    ## Parsed with column specification:
+    ## cols(
+    ##   DATE = col_date(format = ""),
+    ##   NVUR = col_double()
+    ## )
+
+``` r
 #Join the Previous 4 Data Fragments Together into one Frame  (labeled Economic Data)
 economic_data <- Unemployment_Nevada %>%
   left_join(MedianIncomeData_Nevada, by=c("YEAR" = "YEAR")) %>%
   select(3, 2, 5)
 ```
 
-```{r join econ with voting data}
+``` r
 use_dataECON = general_election_data %>%
   select(ELECTION_WINNER,
          ELECTION_YEAR,
@@ -121,11 +173,9 @@ with_economic = use_dataECON %>%
 with_economic_Tidied <- with_economic %>% gather(key = Type, value = Percent, 
                                                  twoYearUnemployment_LOCAL, twoYearMHI_Change_LOCAL, 
                                                  perc_seats_dem)
-
-
 ```
 
-```{r visualize econ data}
+``` r
 #Plot visualization of Nevada's economic conditions and perc
 #p1 <- ggplot(with_economic_Tidied, aes(x = ELECTION_YEAR, y = Percent, col = Type)) + 
 #  geom_line()
@@ -166,8 +216,12 @@ g <- gtable_add_grob(g, ax, pp$t, length(g$widths) - 1, pp$b)
 grid.draw(g)
 ```
 
-#Visualize How an Incumbent Candidate affect Voting Ratio
-```{r visualize Incumbent}
+![](Final_Project_Visualization_files/figure-markdown_github/visualize%20econ%20data-1.png)
+
+Visualize How an Incumbent Candidate affect Voting Ratio
+========================================================
+
+``` r
 vote_ratio_data <- general_election_data %>%
     select(ELECTION_WINNER,
          ELECTION_YEAR,
@@ -194,18 +248,22 @@ g3 <- ggplot(vote_ratio_data, aes(perc_vote_WINNER)) +
 g3
 ```
 
-```{r source_prec,warning=FALSE,message=FALSE,results='hide'}
+![](Final_Project_Visualization_files/figure-markdown_github/visualize%20Incumbent-1.png)
 
+``` r
 source("load_precinct_data.R")
-
 ```
 
-```{r join_prec}
-
+``` r
 ggplot(with_economic,aes(x=ELECTION_YEAR,y=perc_seats_dem)) +
   geom_line() + 
   geom_line(data=pres_summary,mapping=aes(x=Year,y=percent_dem,col=SEP_DIST_ID)) +
  theme(legend.position="none")
+```
+
+![](Final_Project_Visualization_files/figure-markdown_github/join_prec-1.png)
+
+``` r
 #pres_summary%>%
 #  summarize()
 
@@ -217,17 +275,3 @@ ggplot(with_economic,aes(x=ELECTION_YEAR,y=perc_seats_dem)) +
 #join_data = pres_summary %>%
 #  inner_join(pres_use, by=c("ELECTION_ID" = "ElectionID"))
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
