@@ -67,7 +67,7 @@ senate_data = filter(general_election_data,IN_SENATE(SENATE_OR_HOUSE))
 #table(house_data$election_full_date)
 #table(named_data$SENATE_OR_HOUSE,useNA="ifany")
 ```
-
+#Plot Trends between Nevada's Economic Conditions and Legislative Election's Results
 ```{r load_economic_data}
 #Import Nevada Data on % Change of Annual Median Household Income (Marginal) 1984-2016
 MedianIncomeData_Nevada = read_csv("state-legislative-data/Economic Data/Nevada Percent Change in Annual Real Median Househod Income Data 1984-2016.csv") %>%
@@ -117,3 +117,29 @@ g2 <-ggplot(with_economic, aes(x=perc_seats_dem, y=MHI_Change_LOCAL)) +
   geom_jitter(aes(col = ELECTION_YEAR))
 g2  
 ```
+
+#Visualize How an Incumbent Candidate affect Voting Ratio
+```{r visualize Incumbent}
+vote_ratio_data <- general_election_data %>%
+    select(ELECTION_WINNER,
+         ELECTION_YEAR,
+         SENATE_OR_HOUSE,
+         party_code,
+         INCUMBENCY_DUMMY,
+         CANIDATE_VOTE_TOTAL,
+         DISTRICT_NUM) %>%
+  group_by(ELECTION_YEAR, SENATE_OR_HOUSE, DISTRICT_NUM) %>%
+  summarise(perc_vote_WINNER = max(CANIDATE_VOTE_TOTAL)/sum(CANIDATE_VOTE_TOTAL),
+            incumbent_present = sum(INCUMBENCY_DUMMY)) %>%
+  filter(perc_vote_WINNER != 1.00, 
+         DISTRICT_NUM >= 1) %>%
+  mutate(incumbent_present = ifelse(incumbent_present >= 1, "Incumbent_Present",
+                                    "Otherwise"))
+
+#Graph
+g3 <- ggplot(vote_ratio_data, aes(perc_vote_WINNER)) +
+  geom_density() +
+  facet_wrap(~incumbent_present)
+g3
+```
+
