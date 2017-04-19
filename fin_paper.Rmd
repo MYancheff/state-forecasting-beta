@@ -154,7 +154,7 @@ pred_perc = lm(percent_vote ~ INCUMBENCY_DUMMY,data=train_data)
 
 ```{r}
 senate_data %>%
-  filter(ELECTION_YEAR > 2012) %>%
+  filter(ELECTION_YEAR >= 2012) %>%
   select(ALT_DISTRICT_NUM,DISTRICT_NAME) %>%
   unique()
 ```

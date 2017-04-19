@@ -10,6 +10,8 @@ library(foreign)
 library(tidyverse)
 library(lubridate)
 library(ggplot2)
+library(gtable)
+library(grid)
 ```
 
 ```{r function}
@@ -94,28 +96,69 @@ use_dataECON = general_election_data %>%
          INCUMBENCY_DUMMY,
          CANIDATE_VOTE_TOTAL,
          DISTRICT_NUM) %>%
-  filter(ELECTION_WINNER==1) %>%
+  filter(ELECTION_WINNER==1,
+         IN_HOUSE(SENATE_OR_HOUSE)) %>%
   group_by(ELECTION_YEAR, SENATE_OR_HOUSE) %>%
   summarize(perc_seats_dem = sum(is_dem(party_code))/n())
 
 use_dataECON$ELECTION_YEAR <- as.integer(use_dataECON$ELECTION_YEAR)
 
-with_economic = use_dataECON %>% full_join(economic_data, by=c("ELECTION_YEAR"="YEAR"))
+plot_econ_data = economic_data %>%
+  mutate(NextElectYear = (YEAR %/% 2)*2) %>%
+  group_by(NextElectYear) %>%
+  summarize(twoYearUnemployment_LOCAL = mean(Unemployment_LOCAL),
+            twoYearMHI_Change_LOCAL = (1+MHI_Change_LOCAL[1]/100)*MHI_Change_LOCAL[2]+MHI_Change_LOCAL[1])
+
+with_economic = use_dataECON %>%
+  full_join(plot_econ_data, by=c("ELECTION_YEAR"="NextElectYear")) %>%
+  filter(ELECTION_YEAR >= 1986 & ELECTION_YEAR < 2016)
 
 with_economic_Tidied <- with_economic %>% gather(key = Type, value = Percent, 
-                                                 Unemployment_LOCAL, MHI_Change_LOCAL, 
+                                                 twoYearUnemployment_LOCAL, twoYearMHI_Change_LOCAL, 
                                                  perc_seats_dem)
+
+
 ```
 
 ```{r visualize econ data}
 #Plot visualization of Nevada's economic conditions and perc
-g1 <- ggplot(with_economic_Tidied, aes(x = ELECTION_YEAR, y = Percent, col = Type)) + 
-  geom_line()
-g1
+#p1 <- ggplot(with_economic_Tidied, aes(x = ELECTION_YEAR, y = Percent, col = Type)) + 
+#  geom_line()
+#g1
 
-g2 <-ggplot(with_economic, aes(x=perc_seats_dem, y=MHI_Change_LOCAL)) +
-  geom_jitter(aes(col = ELECTION_YEAR))
-g2  
+#g2 <-ggplot(with_economic, aes(x=perc_seats_dem, y=MHI_Change_LOCAL)) +
+#  geom_jitter(aes(col = ELECTION_YEAR))
+
+p1 = ggplot(with_economic,aes(x=ELECTION_YEAR,y=twoYearMHI_Change_LOCAL)) + 
+  geom_line(color="red")+
+  theme_bw()
+
+p2 = ggplot(with_economic,aes(x=ELECTION_YEAR,y=perc_seats_dem)) + 
+  geom_line(color="blue") + 
+  theme_bw() %+replace% 
+  theme(panel.background = element_rect(fill = NA))
+
+# extract gtable
+g1 <- ggplot_gtable(ggplot_build(p1))
+g2 <- ggplot_gtable(ggplot_build(p2))
+
+# overlap the panel of 2nd plot on that of 1st plot
+pp <- c(subset(g1$layout, name == "panel", se = t:r))
+g <- gtable_add_grob(g1, g2$grobs[[which(g2$layout$name == "panel")]], pp$t, 
+    pp$l, pp$b, pp$l)
+
+# axis tweaks
+ia <- which(g2$layout$name == "axis-l")
+ga <- g2$grobs[[ia]]
+ax <- ga$children[[2]]
+ax$widths <- rev(ax$widths)
+ax$grobs <- rev(ax$grobs)
+ax$grobs[[1]]$x <- ax$grobs[[1]]$x - unit(1, "npc") + unit(0.15, "cm")
+g <- gtable_add_cols(g, g2$widths[g2$layout[ia, ]$l], length(g$widths) - 1)
+g <- gtable_add_grob(g, ax, pp$t, length(g$widths) - 1, pp$b)
+
+# draw it
+grid.draw(g)
 ```
 
 #Visualize How an Incumbent Candidate affect Voting Ratio
@@ -130,16 +173,45 @@ vote_ratio_data <- general_election_data %>%
          DISTRICT_NUM) %>%
   group_by(ELECTION_YEAR, SENATE_OR_HOUSE, DISTRICT_NUM) %>%
   summarise(perc_vote_WINNER = max(CANIDATE_VOTE_TOTAL)/sum(CANIDATE_VOTE_TOTAL),
-            incumbent_present = sum(INCUMBENCY_DUMMY)) %>%
+            incumbent_present = sum(INCUMBENCY_DUMMY),
+            incumbent_won = sum(INCUMBENCY_DUMMY * CANIDATE_VOTE_TOTAL) == max(CANIDATE_VOTE_TOTAL)) %>%
   filter(perc_vote_WINNER != 1.00, 
          DISTRICT_NUM >= 1) %>%
-  mutate(incumbent_present = ifelse(incumbent_present >= 1, "Incumbent_Present",
-                                    "Otherwise"))
+  mutate(incumbent_present = ifelse(incumbent_won,"Incumbent Won",
+                                    ifelse(incumbent_present >= 1, "Incumbent Lost",
+                                    "Open Seat Election")))
 
 #Graph
 g3 <- ggplot(vote_ratio_data, aes(perc_vote_WINNER)) +
   geom_density() +
-  facet_wrap(~incumbent_present)
+  facet_wrap(~incumbent_present) + 
+  xlab("Proportion Vote of Winner") + 
+  ggtitle("Vote Captured by Winner in Contested Elections")
 g3
 ```
+
+```{r source_prec,warning=FALSE,message=FALSE,results='hide'}
+
+source("load_precinct_data.R")
+
+```
+
+```{r join_prec}
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
 

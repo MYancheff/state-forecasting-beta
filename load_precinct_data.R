@@ -103,6 +103,10 @@ get_pres_party = function(pres_name){
 
 pres_contest_name = "President and Vice President of the United States"
 
+precincts_no_leg = prec_data %>%
+  filter(Contest == pres_contest_name)  %>%
+  left_join(district_map,by="UniquePrecinct")
+
 pres_summary = prec_data %>%
   filter(Contest == pres_contest_name)  %>%
   left_join(district_map,by="UniquePrecinct") %>%
@@ -111,22 +115,24 @@ pres_summary = prec_data %>%
             Party = get_pres_party(Selection[1])) %>%
   summarise(vote_dem = sum(ifelse(Party=="DEM",vote_count,0)),
             percent_dem = vote_dem/sum(vote_count)) %>%
-  ungroup()
+  ungroup() # %>%
+  #mutate(SEP_DIST_ID=paste(DISTRICT_ID,ifelse(Year >= 2012,"_2012","_2010")))
+         
+#filter(pres_summary,is.na(ElectionType))
 
-filter(pres_summary,is.na(ElectionType))
-
-ggplot(pres_summary,aes(x=Year,y=percent_dem,col=DISTRICT_ID)) +
-  facet_grid(~ElectionType) + 
-  geom_line()
+#ggplot(pres_summary,aes(x=Year,y=percent_dem,col=SEP_DIST_ID)) +
+#  facet_grid(~ElectionType) + 
+#  geom_line()
 
 ##############################################
 # Road data
 ##############################################
 
-road_filenames = paste(folder,"Nevada Precinct Results ",(1984:1990)[c(TRUE, FALSE)],".tsv",sep="")
+#road_filenames = paste(folder,"Nevada Precinct Results ",(1984:1990)[c(TRUE, FALSE)],".tsv",sep="")
 
-load_road = function(filename){
-  read_tsv(filename)
-}
+#load_road = function(filename){
+#  read_tsv(filename)
+#}
 
-road_files = lapply(road_filenames,load_road)
+#road_files = lapply(road_filenames,load_road)
+
