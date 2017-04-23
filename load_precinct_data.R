@@ -2,6 +2,10 @@
 library(tidyverse)
 library(data.table)
 
+##################################################################
+# Load precinct data
+##################################################################
+
 folder = "state-legislative-data/Precinct Level Election Results/"
 
 first_years = (2004:2012)[c(TRUE, FALSE)]
@@ -9,6 +13,7 @@ later_years = c(2014,2016)
 all_years = c(first_years,later_years)
 
 file_end = "(CSV Format).csv"
+# get a list of all the filenames of the files
 statewide_filenames = paste(first_years,"Statewide General Election",file_end)
 gen_filenames = paste(later_years,"General Election Results",file_end)
 all_filenames = c(statewide_filenames,gen_filenames)
@@ -18,12 +23,12 @@ load_file = function(filename){
   read_csv(filename,skip=3,na=c("","NA","*"))
 }
 
+# get a dataframe of all the 
 prec_files = lapply(all_paths,load_file)
 with_years = mapply(function(df,year){mutate(df,Year=year)},prec_files,all_years,SIMPLIFY=FALSE)
 prec_data = rbindlist(with_years) %>%
-  mutate(Votes = ifelse(is.na(Votes),0,Votes),
-         UniquePrecinct = paste(Precinct,Jurisdiction,Year))
-#table(prec_data$Year)
+  mutate(Votes = ifelse(is.na(Votes),0,Votes)) %>%
+  unite(UniquePrecinct,Precinct,Jurisdiction,Year,sep=".",remove=FALSE)
 
 house_name = "State Assembly"
 senate_name = "State Senate"
@@ -32,7 +37,9 @@ is_assembly = function(group_name,contest){
   substr(contest,1,nchar(group_name))==group_name
 }
 district_num = function(group_name,assembly_contest){
-  intval = as.integer(trimws(substr(assembly_contest,nchar(assembly_contest)-1,100000000)))
+  num_str = substr(assembly_contest,nchar(assembly_contest)-1,100000000)
+  trimed_str = trimws(num_str)
+  as.integer(trimed_str)
 }
 
 leg_counties = c(
@@ -89,51 +96,66 @@ rep_list = c(
   "GEORGE W. BUSH",
   "McCain, John",
   "Romney, Mitt",
-  "TRUMP, DONALD J."
+  "TRUMP, DONALD J.",
+  
+  #govenor names
+  "GIBBONS, JIM",
+  "Sandoval, Brian"
 )
 dem_list = c(
   "JOHN F. KERRY",
   "Obama, Barack",
-  "CLINTON, HILLARY"
+  "CLINTON, HILLARY",
+  
+  #govenor names
+  "TITUS, DINA",
+  "Reid, Rory"
 )
-get_pres_party = function(pres_name){
-  ifelse(pres_name %in% rep_list,"REP",
-         ifelse(pres_name %in% dem_list , "DEM","OTHER"))
+get_pres_gov_party = function(name){
+  ifelse(name %in% rep_list,"REP",
+         ifelse(name %in% dem_list , "DEM","OTHER"))
 }
 
 pres_contest_name = "President and Vice President of the United States"
+gov_contest_name = "Governor"
 
-precincts_no_leg = prec_data %>%
-  filter(Contest == pres_contest_name)  %>%
-  left_join(district_map,by="UniquePrecinct")
+#precincts_no_leg = prec_data %>%
+#  filter(Contest == pres_contest_name)  %>%
+#  left_join(district_map,by="UniquePrecinct")
 
 pres_summary = prec_data %>%
-  filter(Contest == pres_contest_name)  %>%
+  mutate(Race=ifelse(Contest == pres_contest_name,
+                     "PRESIDENT",
+                     ifelse(Contest == gov_contest_name,
+                       "GOVENOR",NA))) %>%
+  filter(!is.na(Race))  %>%
   left_join(district_map,by="UniquePrecinct") %>%
-  group_by(Year,ElectionType,DISTRICT_ID,Selection) %>%
+  group_by(Race,Year,ElectionType,DISTRICT_ID,Selection) %>%
   summarise(vote_count = sum(Votes),
             Party = get_pres_party(Selection[1])) %>%
   summarise(vote_dem = sum(ifelse(Party=="DEM",vote_count,0)),
             percent_dem = vote_dem/sum(vote_count),
             total_vote = sum(vote_count)) %>%
   ungroup() %>%
-  mutate(ELECTION_ID = paste(DISTRICT_ID,ElectionType,Year)) %>%
-  mutate(SEP_DIST_ID=paste(DISTRICT_ID,ElectionType,ifelse(Year >= 2012,"_2012","_2010")))
+  gather(key=value_type,value=vote_value,vote_dem:total_vote)%>%
+  unite(RaceValue,Race,value_type) %>%
+  spread(RaceValue,vote_value)
 
+#table(pres_summary$SEP_DIST_ID)
 
 #out_district_data = district_data %>%
 #  group_by(Year,ElectionType,DISTRICT_ID,Selection) %>%
   
 #filter(pres_summary,is.na(ElectionType))
 
-pres_total = pres_summary %>%
-  group_by(Year) %>%
-  summarise(percent_dem = sum(vote_dem)/sum(total_vote))
+#pres_total = pres_summary %>%
+#  group_by(Year) %>%
+#  summarise(percent_dem = sum(vote_dem)/sum(total_vote))
 
-ggplot(pres_summary,aes(x=Year,y=percent_dem)) +
-  facet_grid(~ElectionType) + 
-  geom_line(aes(col=SEP_DIST_ID)) + 
-  geom_line(data=pres_total,mapping=aes(x=Year,y=percent_dem))
+#ggplot(pres_summary,aes(x=Year,y=percent_dem)) +
+#  facet_grid(~ElectionType) + 
+#  geom_line(aes(col=SEP_DIST_ID)) + 
+#  geom_line(data=pres_total,mapping=aes(x=Year,y=percent_dem))
 
 ##############################################
 # Road data

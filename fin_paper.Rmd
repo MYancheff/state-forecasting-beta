@@ -7,61 +7,19 @@ output: github_document
 library(foreign)
 library(tidyverse)
 library(lubridate)
+
+
+source("load_carls.R")
+source("load_precinct_data.R")
+tot_data = left_join(use_data,pres_summary,by=c("ELECTION_YEAR"="Year","Assembly"="ElectionType","DistrictID"="DISTRICT_ID"))
 ```
 
-```{r}
-IN_SENATE = function(sen_or_house) sen_or_house == 8
-IN_HOUSE = function(sen_or_house) sen_or_house == 9
-DEM_PARTY_CODE = 100
-REP_PARTY_CODE = 200
-is_dem = function(code) ifelse(code=="DEM",1,0)
-```
+The format of the tidied dataset we want to model is this:
 
-```{r}
-data = read.dta("state-legislative-data/SLERs1967to2015_20160912b_NV.dta")
+Every row is a (Year, Assembly, District) triple. This is a nice unit because it is the unit we want to run models on. However, none of our data is in this form. All of our data is in a (Year, Canidate) format. So in each dataset, before joining, we need to summarise the sort of covariates we want from that bit of canidate level data.
 
-tables = lapply(data,function(x)table(x,useNA="ifany"))
-info_densty = lapply(tables,dim)
-tables["v09z"]
+One of the major necessary transformations is that 
 
-
-named_data = data %>%
-  rename(ELECTION_YEAR=v05,
-         ELECTION_MONTH=v06,
-         ELECTION_DAY=v06b,
-         SENATE_OR_HOUSE=v07,
-         DISTRICT_NAME=v08,
-         ALT_DISTRICT_NAME=v08z,
-         DISTRICT_NUM=v09,
-         ALT_DISTRICT_NUM=v09z,
-         DISTRICT_TYPE=v12,
-         NUM_WINNERS_FOR_POS=v13,
-         TERM_LENGTH_BY_LAW=v14,
-         TERM_LENGTH_ACTUAL=v15,
-         ELECTION_TYPE=v16,
-         ELECTION_DETERMINES_SITTING_LEG=v17,
-         ELECTION_DETERMINES_SITTING_LEG_GEN=v17b,
-         CANIDATE_ID=v18,
-         PARTY_CODE_DETAILED=v20,
-         PARTY_CODE_SIMPLIFIED=v21,
-         INCUMBENCY_DUMMY=v22,
-         CANIDATE_VOTE_TOTAL=v23,
-         ELECTION_WINNER=v24) %>%
-  mutate(party_code = ifelse(PARTY_CODE_SIMPLIFIED == DEM_PARTY_CODE,"DEM",
-                           ifelse(PARTY_CODE_SIMPLIFIED == REP_PARTY_CODE,"REP",
-                                                                           "OTHER")))
-
-general_election_data = named_data %>%
-  filter(ELECTION_DETERMINES_SITTING_LEG==1)
-
-house_data = filter(general_election_data,IN_HOUSE(SENATE_OR_HOUSE))
-senate_data = filter(general_election_data,IN_SENATE(SENATE_OR_HOUSE))
-
-#table(senate_data$DISTRICT_TYPE)
-#table(senate_data$DISTRICT_NAME,senate_data$DISTRICT_NUM,useNA="ifany")
-#table(house_data$election_full_date)
-#table(named_data$SENATE_OR_HOUSE,useNA="ifany")
-```
 
 ```{r load_economic_data}
 #Import Nevada Data of Annual Median Household Income (Aggregated) 1984-2016
@@ -101,40 +59,31 @@ economic_data <- GDPperCapita_US %>%
 ```
 
 ```{r join econ with voting data}
-use_data = general_election_data %>%
-  select(ELECTION_WINNER,
-         ELECTION_YEAR,
-         SENATE_OR_HOUSE,
-         party_code,
-         INCUMBENCY_DUMMY,
-         CANIDATE_VOTE_TOTAL,
-         DISTRICT_NUM)
 
-with_economic = economic_data %>% left_join(use_data, by=c("YEAR"="ELECTION_YEAR"))
-#left_join(use_data, economic_data ,by=c("ELECTION_YEAR"="YEAR"))
+with_economic = left_join(tot_data, economic_data ,by=c("ELECTION_YEAR"="YEAR"))
+#economic_data %>% left_join(tot_data, by=c("YEAR"="ELECTION_YEAR"))
 ```
 
 ```{r graph}
 #Calculate percentage of house captured by Democrats during a Given Year's General Election
-with_economic <- with_economic %>%
-  filter(ELECTION_WINNER==1) %>%
-  group_by(YEAR, SENATE_OR_HOUSE) %>%
-  mutate(perc_seats_dem = sum(is_dem(party_code))/n()) %>%
-  select(YEAR, SENATE_OR_HOUSE, GDPperCapita_CHANGE_US, MHI_Change_LOCAL,
-         MHI_Change_US, Unemployment_LOCAL, perc_seats_dem)
+percent_seat_data <- tot_data %>%
+  group_by(ELECTION_YEAR, Assembly) %>%
+  summarize(perc_seats_dem = sum(wining_party=="DEM")/n()) %>%
+  left_join(economic_data,by=c("ELECTION_YEAR"="YEAR"))
+
 
 #Tidy df so that we can graph data on a 2 dimensional plane 
 #Exclude unemployment rate (it stretches te y-axis scale too far to capture insights on
                           # the correlating patterns between voting and economic data)
-with_economic_Tidied1 <- with_economic %>% gather(Type,Val,-YEAR, -SENATE_OR_HOUSE, 
+with_economic_Tidied1 <- percent_seat_data %>% gather(Type,Val,-ELECTION_YEAR, -Assembly, 
                                                   -Unemployment_LOCAL)
 #Visualize 
-graph1 <- ggplot(with_economic_Tidied1,aes(x=YEAR, y=Val, col=Type)) + 
+graph1 <- ggplot(with_economic_Tidied1,aes(x=ELECTION_YEAR, y=Val, col=Type)) + 
   geom_line() + 
-  facet_wrap(~SENATE_OR_HOUSE)
+  facet_wrap(~Assembly)
 
 #Tidy a separate df by gathering just Unemployment_Local  and perc_seats_dem under Type
-with_economic_Tidied2 <- with_economic %>% gather(key = Type, value = Percent, 
+with_economic_Tidied2 <- percent_seat_data %>% gather(key = Type, value = Percent, 
                                                   Unemployment_LOCAL, perc_seats_dem)
 ```
 
