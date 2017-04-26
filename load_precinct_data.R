@@ -169,3 +169,34 @@ pres_summary = prec_data %>%
 
 #road_files = lapply(road_filenames,load_road)
 
+##############################################
+# 1992-2002 Data
+##############################################
+
+#Precinct Level Data for Clark County
+
+#Import Data
+library(readxl)
+nvclark1992to2002 <- read_excel("~/Desktop/state-forecasting-beta/state-legislative-data/Precinct Level Election Results/nvclark1992to2002.xls")
+
+#Import Clark County's precinct to district associations:
+#1992-1994:
+CLARK_COUNTY_1992_1994_ASSEMBLY_DISTRICT <- read_excel("~/Desktop/state-forecasting-beta/state-legislative-data/Precinct Level Election Results/CLARK COUNTY 1992-1994 ASSEMBLY DISTRICT.xlsx")
+CLARK_COUNTY_1992_1994_SENATE_DISTRICT <- read_excel("~/Desktop/state-forecasting-beta/state-legislative-data/Precinct Level Election Results/CLARK COUNTY 1992-1994 SENATE DISTRICT.xlsx")
+
+#1996-2000: 
+CLARK_COUNTY_1996_2000_ASSEMBLY_DISTRICT <- read_excel("~/Desktop/state-forecasting-beta/state-legislative-data/Precinct Level Election Results/CLARK COUNTY 1996-2000 ASSEMBLY DISTRICT.xlsx")
+CLARK_COUNTY_1996_2000_SENATE_DISTRICT <- read_excel("~/Desktop/state-forecasting-beta/state-legislative-data/Precinct Level Election Results/CLARK COUNTY 1996-2000 SENATE DISTRICT.xlsx")
+
+#2002: 
+
+
+#Isolate out 1992 Precinct Results for Clark County, Nevada
+PrecinctCLARK_19992 <- nvclark1992to2002 %>% filter(year == 1992)
+
+#Make the precinct naming conventions match between Precinct Voting Data and Precinct to District Cheatsheet
+CLARK_COUNTY_1992_1994_ASSEMBLY_DISTRICT <- CLARK_COUNTY_1992_1994_ASSEMBLY_DISTRICT %>%
+  mutate(precname = substring(PRECINCT, 1, 3)) %>% 
+  mutate(precnum = substring(PRECINCT, 4, 6))
+
+CLARK_COUNTY_1992_1994_ASSEMBLY_DISTRICT$precnum <- as.integer(CLARK_COUNTY_1992_1994_ASSEMBLY_DISTRICT$precnum)
