@@ -170,33 +170,45 @@ pres_summary = prec_data %>%
 #road_files = lapply(road_filenames,load_road)
 
 ##############################################
-# 1992-2002 Data
+# 1992-2002 Data Carson City
 ##############################################
 
-#Precinct Level Data for Clark County
-
-#Import Data
+#Import Carson City Data
 library(readxl)
-nvclark1992to2002 <- read_excel("~/Desktop/state-forecasting-beta/state-legislative-data/Precinct Level Election Results/nvclark1992to2002.xls")
+carsoncity1996to2002 <- read_excel("~/Desktop/state-forecasting-beta/state-legislative-data/Precinct Level Election Results/carsoncity1996to2002.xls")
+View(carsoncity1996to2002)
 
-#Import Clark County's precinct to district associations:
-#1992-1994:
-CLARK_COUNTY_1992_1994_ASSEMBLY_DISTRICT <- read_excel("~/Desktop/state-forecasting-beta/state-legislative-data/Precinct Level Election Results/CLARK COUNTY 1992-1994 ASSEMBLY DISTRICT.xlsx")
-CLARK_COUNTY_1992_1994_SENATE_DISTRICT <- read_excel("~/Desktop/state-forecasting-beta/state-legislative-data/Precinct Level Election Results/CLARK COUNTY 1992-1994 SENATE DISTRICT.xlsx")
+#Select only the relevant data and columns for the purpose of this project
+carsoncity1996to2002 <- carsoncity1996to2002 %>%
+  #filter out rowtype = cards (this is documentation of the voting machines)
+  filter(rowtype != "cards") %>%
+  #filter out the cumulative final reports across all precincts in each election year
+  filter(grepl('precinct', precname)) %>%
+  #filter in only relevant races (president, governor, assembly and senate districts)
+  filter(grepl('senate|assembly|governor|president|congress', officename),
+         !grepl('lieutenant', officename)) %>%
+  select(year, precname, rowtype, officename, cand, votes)
 
-#1996-2000: 
-CLARK_COUNTY_1996_2000_ASSEMBLY_DISTRICT <- read_excel("~/Desktop/state-forecasting-beta/state-legislative-data/Precinct Level Election Results/CLARK COUNTY 1996-2000 ASSEMBLY DISTRICT.xlsx")
-CLARK_COUNTY_1996_2000_SENATE_DISTRICT <- read_excel("~/Desktop/state-forecasting-beta/state-legislative-data/Precinct Level Election Results/CLARK COUNTY 1996-2000 SENATE DISTRICT.xlsx")
+#Convert variable `officename` from characters into factors
+carsoncity1996to2002$officename <- as.factor(carsoncity1996to2002$officename)
 
-#2002: 
+#extract the precinct's state assembly & senate districts
+library(stringi)
+precinct_district_1992to2002_Carson <- carsoncity1996to2002 %>%
+  filter(grepl('senate|assembly', officename)) %>%
+  select(1:4) %>%
+  distinct() %>%
+  mutate(SENATE_OR_HOUSE = ifelse(grepl('assembly', officename), 8, no = 9)) %>%
+  mutate(DIST_NAME = ifelse(grepl('capital', officename), "CAPITAL",
+                            ifelse(grepl('western', officename), "WESTERN", 
+                            "CARSON CITY"))) %>%
+  mutate(DISTRICT_NUM = stri_sub(officename, -2)) %>%
+  select(-3)
 
+#Since the senate districts doesnt have a number associated to it: 
+#The value that get extracted for DISTRICT_NUM is ct (last 2 characters of "district")
+#There are only 1 senate district each associated with "CAPITAL" AND "WESTERN"
+#Hence, I recode "ct" to number 1 to follow the format of Carl's Data
+precinct_district_1992to2002_Carson$DISTRICT_NUM[precinct_district_1992to2002_Washoe$DISTRICT_NUM == "ct"] <- 1
 
-#Isolate out 1992 Precinct Results for Clark County, Nevada
-PrecinctCLARK_19992 <- nvclark1992to2002 %>% filter(year == 1992)
-
-#Make the precinct naming conventions match between Precinct Voting Data and Precinct to District Cheatsheet
-CLARK_COUNTY_1992_1994_ASSEMBLY_DISTRICT <- CLARK_COUNTY_1992_1994_ASSEMBLY_DISTRICT %>%
-  mutate(precname = substring(PRECINCT, 1, 3)) %>% 
-  mutate(precnum = substring(PRECINCT, 4, 6))
-
-CLARK_COUNTY_1992_1994_ASSEMBLY_DISTRICT$precnum <- as.integer(CLARK_COUNTY_1992_1994_ASSEMBLY_DISTRICT$precnum)
+write.csv(precinct_district_1992to2002_Carson, "precinct to district cheatsheet Carson City 1992-2002.csv")
