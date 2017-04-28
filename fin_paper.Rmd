@@ -11,7 +11,7 @@ library(lubridate)
 
 source("load_carls.R")
 source("load_precinct_data.R")
-tot_data = left_join(use_data,pres_summary,by=c("ELECTION_YEAR"="Year","Assembly"="ElectionType","DistrictID"="DISTRICT_ID"))
+tot_data = left_join(model_data,pres_summary,by=c("ELECTION_YEAR"="Year","Assembly"="ElectionType","DistrictID"="DISTRICT_ID"))
 ```
 
 The format of the tidied dataset we want to model is this:

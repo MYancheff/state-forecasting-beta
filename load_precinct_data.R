@@ -132,7 +132,7 @@ pres_summary = prec_data %>%
   left_join(district_map,by="UniquePrecinct") %>%
   group_by(Race,Year,ElectionType,DISTRICT_ID,Selection) %>%
   summarise(vote_count = sum(Votes),
-            Party = get_pres_party(Selection[1])) %>%
+            Party = get_pres_gov_party(Selection[1])) %>%
   summarise(vote_dem = sum(ifelse(Party=="DEM",vote_count,0)),
             percent_dem = vote_dem/sum(vote_count),
             total_vote = sum(vote_count)) %>%
