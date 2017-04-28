@@ -176,10 +176,10 @@ pres_summary = prec_data %>%
 #Import Carson City Data
 library(readxl)
 carsoncity1996to2002 <- read_excel("~/Desktop/state-forecasting-beta/state-legislative-data/Precinct Level Election Results/carsoncity1996to2002.xls")
-View(carsoncity1996to2002)
 
-#Select only the relevant data and columns for the purpose of this project
-carsoncity1996to2002 <- carsoncity1996to2002 %>%
+#MAIN DATA
+#Wrangle data into a format that works the purpose of this project
+carsoncity1996to2002_tidy <- carsoncity1996to2002 %>%
   #filter out rowtype = cards (this is documentation of the voting machines)
   filter(rowtype != "cards") %>%
   #filter out the cumulative final reports across all precincts in each election year
@@ -187,14 +187,26 @@ carsoncity1996to2002 <- carsoncity1996to2002 %>%
   #filter in only relevant races (president, governor, assembly and senate districts)
   filter(grepl('senate|assembly|governor|president|congress', officename),
          !grepl('lieutenant', officename)) %>%
-  select(year, precname, rowtype, officename, cand, votes)
-
+  select(year, precname, rowtype, officename, cand, votes) %>%
+  #mutate party-code for each candidate observations
+  mutate(party_code = stri_sub(cand, -3)) %>%
+  #rename the independent parties into OTHER
+  mutate(PARTY_CODE = ifelse(grepl('dem', party_code), "DEM",
+                             ifelse(grepl('rep', party_code), "REP", 
+                                  "OTHER"))) %>%
+  #select relevant collumns
+  select(-cand, -party_code) %>%
+  #sum up votes by PARTY_CODE
+  group_by(year, precname, officename, PARTY_CODE) %>%
+  summarize(VOTES = sum(votes))
+  
 #Convert variable `officename` from characters into factors
-carsoncity1996to2002$officename <- as.factor(carsoncity1996to2002$officename)
+carsoncity1996to2002_tidy$officename <- as.factor(carsoncity1996to2002_tidy$officename)
 
+#PRECINCT TO DISTRICT CHEATSHEET
 #extract the precinct's state assembly & senate districts
 library(stringi)
-precinct_district_1992to2002_Carson <- carsoncity1996to2002 %>%
+precinct_district_1992to2002_Carson <- carsoncity1996to2002_tidy %>%
   filter(grepl('senate|assembly', officename)) %>%
   select(1:4) %>%
   distinct() %>%
@@ -203,12 +215,26 @@ precinct_district_1992to2002_Carson <- carsoncity1996to2002 %>%
                             ifelse(grepl('western', officename), "WESTERN", 
                             "CARSON CITY"))) %>%
   mutate(DISTRICT_NUM = stri_sub(officename, -2)) %>%
-  select(-3)
+  select(-3, -4)
 
 #Since the senate districts doesnt have a number associated to it: 
 #The value that get extracted for DISTRICT_NUM is ct (last 2 characters of "district")
 #There are only 1 senate district each associated with "CAPITAL" AND "WESTERN"
 #Hence, I recode "ct" to number 1 to follow the format of Carl's Data
-precinct_district_1992to2002_Carson$DISTRICT_NUM[precinct_district_1992to2002_Washoe$DISTRICT_NUM == "ct"] <- 1
+precinct_district_1992to2002_Carson$DISTRICT_NUM[precinct_district_1992to2002_Carson$DISTRICT_NUM == "ct"] <- 1
 
+#Export CSV file of this precinct-to-district Cheatsheet for Carson City 
 write.csv(precinct_district_1992to2002_Carson, "precinct to district cheatsheet Carson City 1992-2002.csv")
+
+#Join precinct_to_district cheatsheet with the larger Carson City precinct data files
+carsoncity1996to2002_tidy <- carsoncity1996to2002_tidy %>%
+  left_join(precinct_district_1992to2002_Carson, by=c("year" = "year",
+                                                      "precname" = "precname")) 
+
+#Export CSV file of the Carson City precinct data 1996-2002 with legislative district tags 
+write.csv(carsoncity1996to2002_tidy, "Carson City Precinct Level Results 1996-2002.csv")
+
+##############################################
+# 1992-2002 Data WASHOE COUNTY
+##############################################
+
