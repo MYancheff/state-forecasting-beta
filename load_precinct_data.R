@@ -238,3 +238,88 @@ write.csv(carsoncity1996to2002_tidy, "Carson City Precinct Level Results 1996-20
 # 1992-2002 Data WASHOE COUNTY
 ##############################################
 
+#Import the main Washoe precinct-level voting data from 1994-2002
+library(readxl)
+washoe1994to2002 <- read_excel("~/Desktop/state-forecasting-beta/state-legislative-data/Precinct Level Election Results/washoe1994to2002.xls")
+
+  #Select the relevant collumns
+washoe1994to2002$votetot <- as.integer(washoe1994to2002$votetot)
+washoe1994to2002$repub <- as.integer(washoe1994to2002$repub)
+washoe1994to2002$dem <- as.integer(washoe1994to2002$dem)
+
+washoe1994to2002 <- washoe1994to2002 %>%
+  select(year, 1:3, repub, dem, other)
+
+#Import the precinct-to-district cheatsheet we created for Washoe County
+Washoe_Precinct_to_District_Cheatsheet <- read_excel("~/Desktop/state-forecasting-beta/state-legislative-data/Precinct Level Election Results/Washoe Precinct to District Cheatsheet.xlsx")
+
+  #Select relevant columns and filter out all the entry with DIST_NUM = 0
+Washoe_Precinct_to_District_Cheatsheet <- Washoe_Precinct_to_District_Cheatsheet %>%
+  select(-precnum1) %>%
+  filter(DIST_NUM != 0)
+
+#Join precinct_to_district cheatsheet with the larger Washoe County precinct data file
+washoe1994to2002_tidy <- washoe1994to2002 %>%
+  left_join(Washoe_Precinct_to_District_Cheatsheet, by=c("year" = "year",
+                                                      "precname" = "precname", 
+                                                      "precnum" = "precnum")) %>%
+  filter(precname != "total") %>%
+  rename(REP = repub,
+         DEM = dem,
+         OTHER = other)
+    
+  
+
+washoe1994to2002_tidy$precname <- as.factor(washoe1994to2002_tidy$precname)    
+
+#Export CSV file of the Washoe County precinct data 1994-2002 with legislative district tags 
+write.csv(washoe1994to2002_tidy, "Washoe County Precinct Level Results 1994-2002.csv")
+
+
+#Create an aggregate csv file of all available precinct-level data from Nevada, 1992-2002
+
+  #Tidy Data (get all the data files into the same formats (same number of collumns))
+    #Select relevant columns from Carson City Data
+carsoncity1996to2002_tidy <- Carson_City_Precinct_Level_Results_1996_2002 %>% 
+  select(-`X1`) %>%
+    #spread PARTY_CODES to derive 3 separate collumns for REP, DEM, OTHER
+  spread(key = `PARTY_CODE`, value = `VOTES`, fill = 0) %>%
+    #mutate a new column capturing turnout
+  mutate(Turnout = DEM + OTHER + REP) %>%
+    #mutate a nonexistent precnum column
+  mutate(precnum = NA) %>%
+    #mutate a county column:
+  mutate(county = "Carson_City")
+
+    #mutate a county column for Clark County Data
+NVclarkcounty1992to2002_tidy <- NV_Clark_County_Precinct_Level_Results_1992_2002 %>%
+  mutate(county = "clark") %>%
+    #mutate a DIST_NAME column: 
+  mutate(DIST_NAME = "CLARK") %>%
+    #Mutate a column capturing the type of contests/races
+ mutate(officename = ifelse(grepl('1992|1996|2000', year), "president", "governor")) %>%
+    #Select the relevants columns
+  select(-rowtype, -RV, -Percent)
+
+    #Add up voter turnout in Washoe County Data
+washoe1994to2002_tidy$OTHER[is.na(washoe1994to2002_tidy$OTHER)] <- 0
+washoe1994to2002_tidy <- washoe1994to2002_tidy %>%
+  mutate(Turnout = REP + DEM + OTHER) %>%
+    #Mutate a column capturing the type of contests/races
+  mutate(officename = ifelse(grepl('1992|1996|2000', year), "president", "governor")) %>%
+    #Reformat so that all the columns are in the same order
+  rename(DISTRICT_NUM = DIST_NUM)
+
+#Bind all 3 files together
+precinct_data_1992to2002 <- rbind(carsoncity1996to2002_tidy, washoe1994to2002_tidy, NVclarkcounty1992to2002_tidy)   
+
+#Export CSV file of the Washoe County precinct data 1994-2002 with legislative district tags 
+write.csv(precinct_data_1992to2002, "Precinct Level Results 1992-2002 Washoe, Clark County & Carson City.csv")
+  
+##############################################
+# Random codes
+##############################################
+carsoncity1996to2002_tidy$PARTY_CODE <- as.factor(carsoncity1996to2002_tidy$PARTY_CODE)
+carsoncity1996to2002_tidy$VOTES <- as.integer(carsoncity1996to2002_tidy$VOTES)
+
+gather(key = PARTY_CODE, value = VOTES, `DEM`, `REP`, `OTHER`)    
