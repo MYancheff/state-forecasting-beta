@@ -311,7 +311,15 @@ washoe1994to2002_tidy <- washoe1994to2002_tidy %>%
   rename(DISTRICT_NUM = DIST_NUM)
 
 #Bind all 3 files together
-precinct_data_1992to2002 <- rbind(carsoncity1996to2002_tidy, washoe1994to2002_tidy, NVclarkcounty1992to2002_tidy)   
+precinct_data_1992to2002 <- rbind(carsoncity1996to2002_tidy, washoe1994to2002_tidy, NVclarkcounty1992to2002_tidy)
+  
+#Gather DEM, REP and OTHER into PARTY_CODE and VOTE  
+precinct_data_1992to2002 <- precinct_data_1992to2002 %>% 
+  gather(key = PARTY_CODE, value = VOTES, `DEM`, `REP`, `OTHER`) %>%
+  #Rearrange column in a format that would makes the most sense to a reader
+  select(year, county, precname, precnum, SENATE_OR_HOUSE, 
+         DIST_NAME, DISTRICT_NUM, officename, Turnout, PARTY_CODE, VOTES)
+  
 
 #Export CSV file of the Washoe County precinct data 1994-2002 with legislative district tags 
 write.csv(precinct_data_1992to2002, "Precinct Level Results 1992-2002 Washoe, Clark County & Carson City.csv")
