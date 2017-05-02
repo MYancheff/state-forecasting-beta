@@ -5,6 +5,12 @@ output: github_document
 
 ## Codebook for precinct data
 
+### Data sources
+
+* Statewide data for 2004-2016
+* ROAD data
+* 
+
 ### Collumn Specifications
 
 

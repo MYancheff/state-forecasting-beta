@@ -147,7 +147,7 @@ load_road = function(road_year){
             ifelse(grepl("_RV",vote_type),"REP",
              ifelse(grepl("_O[1-9]",vote_type),"OTHER",
                   NA))),
-      Year=year) %>%
+      Year=road_year) %>%
     filter(!is.na(officename),
            !is.na(party)) %>%
     rename(precnum=PR,
@@ -155,7 +155,8 @@ load_road = function(road_year){
            senate_district_num=SD,
            house_num=LD,
            house_nname=LDS,
-           pname_local=PNAME)
+           pname_local=PNAME) %>%
+    select(-(ST:WD),CY,-(AF:BB))
 }
 
 road_files = lapply(road_years,load_road)
@@ -229,22 +230,19 @@ write.csv(carsoncity1996to2002_tidy, "Carson City Precinct Level Results 1996-20
 ##############################################
 
 #Import the main Washoe precinct-level voting data from 1994-2002
-washoe1994to2002 <- read_excel("state-legislative-data/Precinct Level Election Results/washoe1994to2002.xls")
+washoe1994to2002 <- read_csv("state-legislative-data/Precinct Level Election Results/washoe1994to2002.csv")
 
   #Select the relevant collumns
-washoe1994to2002$votetot <- as.integer(washoe1994to2002$votetot)
-washoe1994to2002$repub <- as.integer(washoe1994to2002$repub)
-washoe1994to2002$dem <- as.integer(washoe1994to2002$dem)
-
 washoe1994to2002 <- washoe1994to2002 %>%
   select(year, 1:3, repub, dem, other)
 
 #Import the precinct-to-district cheatsheet we created for Washoe County
 Washoe_Precinct_to_District_Cheatsheet <- read_excel("state-legislative-data/Precinct Level Election Results/Washoe Precinct to District Cheatsheet.xlsx")
 
+table(Washoe_Precinct_to_District_Cheatsheet$DIST_NUM)
   #Select relevant columns and filter out all the entry with DIST_NUM = 0
 Washoe_Precinct_to_District_Cheatsheet <- Washoe_Precinct_to_District_Cheatsheet %>%
- # select(-precnum) %>%
+  #filters out precincts which aren't associated with a district (due to data entry ease)
   filter(DIST_NUM != 0)
 
 #Join precinct_to_district cheatsheet with the larger Washoe County precinct data file
@@ -258,9 +256,6 @@ washoe1994to2002_tidy <- washoe1994to2002 %>%
          OTHER = other)
     
   
-
-washoe1994to2002_tidy$precname <- as.factor(washoe1994to2002_tidy$precname)    
-
 #Export CSV file of the Washoe County precinct data 1994-2002 with legislative district tags 
 write.csv(washoe1994to2002_tidy, "Washoe County Precinct Level Results 1994-2002.csv")
 
