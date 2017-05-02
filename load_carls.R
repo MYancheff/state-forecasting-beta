@@ -1,3 +1,5 @@
+library(foreign)
+
 IN_SENATE = function(sen_or_house) sen_or_house == 8
 IN_HOUSE = function(sen_or_house) sen_or_house == 9
 DEM_PARTY_CODE = 100

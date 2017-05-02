@@ -1,6 +1,7 @@
-
 library(tidyverse)
 library(data.table)
+library(readxl)
+library(stringi)
 
 ##################################################################
 # Load precinct data
@@ -20,7 +21,7 @@ all_filenames = c(statewide_filenames,gen_filenames)
 all_paths = paste(folder,all_filenames,sep="")
 
 load_file = function(filename){
-  read_csv(filename,skip=3,na=c("","NA","*"))
+  read_csv(filename,na=c("","NA","*"))
 }
 
 # get a dataframe of all the 
@@ -132,7 +133,7 @@ pres_summary = prec_data %>%
   left_join(district_map,by="UniquePrecinct") %>%
   group_by(Race,Year,ElectionType,DISTRICT_ID,Selection) %>%
   summarise(vote_count = sum(Votes),
-            Party = get_pres_party(Selection[1])) %>%
+            Party = get_pres_gov_party(Selection[1])) %>%
   summarise(vote_dem = sum(ifelse(Party=="DEM",vote_count,0)),
             percent_dem = vote_dem/sum(vote_count),
             total_vote = sum(vote_count)) %>%
@@ -174,7 +175,6 @@ pres_summary = prec_data %>%
 ##############################################
 
 #Import Carson City Data
-library(readxl)
 carsoncity1996to2002 <- read_excel("~/Desktop/state-forecasting-beta/state-legislative-data/Precinct Level Election Results/carsoncity1996to2002.xls")
 
 #MAIN DATA
@@ -205,7 +205,6 @@ carsoncity1996to2002_tidy$officename <- as.factor(carsoncity1996to2002_tidy$offi
 
 #PRECINCT TO DISTRICT CHEATSHEET
 #extract the precinct's state assembly & senate districts
-library(stringi)
 precinct_district_1992to2002_Carson <- carsoncity1996to2002_tidy %>%
   filter(grepl('senate|assembly', officename)) %>%
   select(1:4) %>%
@@ -239,8 +238,7 @@ write.csv(carsoncity1996to2002_tidy, "Carson City Precinct Level Results 1996-20
 ##############################################
 
 #Import the main Washoe precinct-level voting data from 1994-2002
-library(readxl)
-washoe1994to2002 <- read_excel("~/Desktop/state-forecasting-beta/state-legislative-data/Precinct Level Election Results/washoe1994to2002.xls")
+washoe1994to2002 <- read_excel("state-legislative-data/Precinct Level Election Results/washoe1994to2002.xls")
 
   #Select the relevant collumns
 washoe1994to2002$votetot <- as.integer(washoe1994to2002$votetot)
@@ -251,7 +249,7 @@ washoe1994to2002 <- washoe1994to2002 %>%
   select(year, 1:3, repub, dem, other)
 
 #Import the precinct-to-district cheatsheet we created for Washoe County
-Washoe_Precinct_to_District_Cheatsheet <- read_excel("~/Desktop/state-forecasting-beta/state-legislative-data/Precinct Level Election Results/Washoe Precinct to District Cheatsheet.xlsx")
+Washoe_Precinct_to_District_Cheatsheet <- read_excel("state-legislative-data/Precinct Level Election Results/Washoe Precinct to District Cheatsheet.xlsx")
 
   #Select relevant columns and filter out all the entry with DIST_NUM = 0
 Washoe_Precinct_to_District_Cheatsheet <- Washoe_Precinct_to_District_Cheatsheet %>%

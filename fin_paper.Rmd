@@ -11,7 +11,20 @@ library(lubridate)
 
 source("load_carls.R")
 source("load_precinct_data.R")
-tot_data = left_join(use_data,pres_summary,by=c("ELECTION_YEAR"="Year","Assembly"="ElectionType","DistrictID"="DISTRICT_ID"))
+source("load_econ_data.R")
+
+pres_summary = prec_level_data %>%
+  group_by(Race,Year,DISTRICT_ID) %>%
+  summarise(vote_dem = sum(ifelse(Party=="DEM",vote_count,0)),
+            percent_dem = vote_dem/sum(vote_count),
+            total_vote = sum(vote_count)) %>%
+  ungroup() %>%
+  gather(key=value_type,value=vote_value,vote_dem:total_vote)%>%
+  unite(RaceValue,Race,value_type) %>%
+  spread(RaceValue,vote_value)
+
+tot_data = left_join(use_data,pres_summary,by=c("ELECTION_YEAR"="Year","Assembly"="ElectionType","DistrictID"="DISTRICT_ID")) %>%
+  left_join(economic_data ,by=c("ELECTION_YEAR"="YEAR"))
 ```
 
 The format of the tidied dataset we want to model is this:
@@ -38,6 +51,30 @@ senate_data %>%
   filter(ELECTION_YEAR >= 2012) %>%
   select(ALT_DISTRICT_NUM,DISTRICT_NAME) %>%
   unique()
+```
+
+```{r}
+
+#Calculate percentage of house captured by Democrats during a Given Year's General Election
+percent_seat_data <- tot_data %>%
+  group_by(ELECTION_YEAR, Assembly) %>%
+  summarize(perc_seats_dem = sum(wining_party=="DEM")/n()) %>%
+  left_join(economic_data,by=c("ELECTION_YEAR"="YEAR"))
+
+
+#Tidy df so that we can graph data on a 2 dimensional plane 
+#Exclude unemployment rate (it stretches te y-axis scale too far to capture insights on
+# the correlating patterns between voting and economic data)
+with_economic_Tidied1 <- percent_seat_data %>% gather(Type,Val,-ELECTION_YEAR, -Assembly, 
+                                                      -Unemployment_LOCAL)
+#Visualize 
+graph1 <- ggplot(with_economic_Tidied1,aes(x=ELECTION_YEAR, y=Val, col=Type)) + 
+  geom_line() + 
+  facet_wrap(~Assembly)
+
+#Tidy a separate df by gathering just Unemployment_Local  and perc_seats_dem under Type
+with_economic_Tidied2 <- percent_seat_data %>% gather(key = Type, value = Percent, 
+                                                      Unemployment_LOCAL, perc_seats_dem)
 ```
 
 Road citation:
