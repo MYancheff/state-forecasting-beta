@@ -132,13 +132,34 @@ prec_data_2004_2014 = prec_data %>%
 # Road data
 ##############################################
 
-road_filenames = paste(folder,"Nevada Precinct Results ",(1984:1990)[c(TRUE, FALSE)],".tsv",sep="")
+road_years = c(1984,1986,1988,1990)
 
-load_road = function(filename){
-  read_tsv(filename)
+load_road = function(road_year){
+  road_filename = paste(folder,"Nevada Precinct Results ",road_year,".tsv",sep="")
+  
+  read_tsv(road_filename) %>%
+    gather(key=vote_type,value=num_votes,-(ST:PNAME)) %>%
+    mutate(
+      officename=ifelse(grepl("G[0-9][0-9]G_",vote_type),"governor",
+                 ifelse(grepl("G[0-9][0-9]P_",vote_type),"president",
+                  NA)),# add more ifelse(grepl(...)...) here to add more elections
+      party=ifelse(grepl("_DV",vote_type),"DEM",
+            ifelse(grepl("_RV",vote_type),"REP",
+             ifelse(grepl("_O[1-9]",vote_type),"OTHER",
+                  NA))),
+      Year=year) %>%
+    filter(!is.na(officename),
+           !is.na(party)) %>%
+    rename(precnum=PR,
+           precname=PRS,
+           senate_district_num=SD,
+           house_num=LD,
+           house_nname=LDS,
+           pname_local=PNAME)
 }
 
-road_files = lapply(road_filenames,load_road)
+road_files = lapply(road_years,load_road)
+road_data = rbindlist(road_files)
 
 ##############################################
 # 1992-2002 Data Carson City
