@@ -13,17 +13,29 @@ source("load_carls.R")
 source("load_precinct_data.R")
 source("load_econ_data.R")
 
-pres_summary = prec_level_data %>%
-  group_by(Race,Year,DISTRICT_ID) %>%
+
+pres_summary = prec_data_2004_2014 %>% 
+  group_by(officename,Year,SENATE_OR_HOUSE,DIST_NAME,DIST_NUM,Selection) %>%
+  summarise(vote_count = sum(Votes),
+            Party = get_pres_gov_party(Selection[1])) %>%
   summarise(vote_dem = sum(ifelse(Party=="DEM",vote_count,0)),
-            percent_dem = vote_dem/sum(vote_count),
             total_vote = sum(vote_count)) %>%
   ungroup() %>%
   gather(key=value_type,value=vote_value,vote_dem:total_vote)%>%
-  unite(RaceValue,Race,value_type) %>%
+  unite(RaceValue,officename,value_type) %>%
   spread(RaceValue,vote_value)
 
-tot_data = left_join(use_data,pres_summary,by=c("ELECTION_YEAR"="Year","Assembly"="ElectionType","DistrictID"="DISTRICT_ID")) %>%
+named_data = use_data %>%
+  left_join(filter(pres_summary,!is.na(DIST_NAME)),
+            by=c("ELECTION_YEAR"="Year","Assembly"="SENATE_OR_HOUSE","DISTRICT_NUM"="DIST_NUM","DISTRICT_NAME"="DIST_NAME"))
+
+unnamed_data = use_data %>%
+  left_join(filter(pres_summary,is.na(DIST_NAME)),
+            by=c("ELECTION_YEAR"="Year","Assembly"="SENATE_OR_HOUSE","DISTRICT_NUM"="DIST_NUM")) %>%
+  select(-DIST_NAME)
+
+
+model_data = rbind(named_data,unnamed_data) %>%
   left_join(economic_data ,by=c("ELECTION_YEAR"="YEAR"))
 ```
 
@@ -31,15 +43,13 @@ The format of the tidied dataset we want to model is this:
 
 Every row is a (Year, Assembly, District) triple. This is a nice unit because it is the unit we want to run models on. However, none of our data is in this form. All of our data is in a (Year, Canidate) format. So in each dataset, before joining, we need to summarise the sort of covariates we want from that bit of canidate level data.
 
-One of the major necessary transformations is that 
-
 ```{r}
 beforeyear = 2014
 
-train_data = use_data %>%
+train_data = model_data %>%
   filter(ELECTION_YEAR < beforeyear) %>%
   filter(ELECTION_YEAR > 1970) %>% # we don't have district numbers for 1968 and 1970! (this should be fixable)
-  group_by(DISTRICT_NUM,ELECTION_YEAR) %>%
+  group_by(DIST_NUM,ELECTION_YEAR) %>%
   mutate(percent_vote = CANIDATE_VOTE_TOTAL/sum(CANIDATE_VOTE_TOTAL)) %>%
   ungroup()
 
@@ -54,7 +64,6 @@ senate_data %>%
 ```
 
 ```{r}
-
 #Calculate percentage of house captured by Democrats during a Given Year's General Election
 percent_seat_data <- tot_data %>%
   group_by(ELECTION_YEAR, Assembly) %>%

@@ -32,4 +32,6 @@ economic_data = rbind(
     MedianIncomeData_US,
     Unemployment_Nevada) %>%
   mutate(YEAR=as.integer(format(DATE,"%Y"))) %>%
-  spread(key=DATA_TYPE,value=VALUE)
+  spread(key=DATA_TYPE,value=VALUE)%>%
+  select(-DATE)
+  

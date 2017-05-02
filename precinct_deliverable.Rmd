@@ -1,0 +1,16 @@
+---
+title: "precinct_deliverable"
+output: github_document
+---
+
+## Codebook for precinct data
+
+### Collumn Specifications
+
+
+* Year: Year of election
+* precname: name of precinct. Sometimes also includes a  number inside of it. Together with precnum, it describes the precinct uniquely. Not entirely standardized, but it comes from original pdfs provided by the state and should roughly match up to them.
+* precnum: number of precinct. Together with precname, it describes the precinct uniquely. Not standardized. See precname for more details. 
+* SENATE_OR_HOUSE: ????
+* DIST_NAME: Nevada often 
+

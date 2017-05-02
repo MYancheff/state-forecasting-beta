@@ -54,44 +54,40 @@ match_counties = function(let3) leg_counties[which(substring(leg_counties,1,3)==
 
 house_prec_data = prec_data %>%
   filter(is_assembly(house_name,Contest)) %>%
-  mutate(DIST_ID = as.character(district_num(house_name,Contest)),
-         ElectionType="HOUSE")
+  mutate(DIST_NAME=NA,
+         DIST_NUM = district_num(house_name,Contest),
+         SENATE_OR_HOUSE="HOUSE")
 
 all_senate_data = prec_data %>%
   filter(is_assembly(senate_name,Contest)) %>%
-  mutate(ElectionType="SENATE")
+  mutate(SENATE_OR_HOUSE="SENATE")
 
 senate_data_2004_2010 = all_senate_data %>%
   filter(Year < 2012) %>%
-  mutate(DIST_ID = {
+  mutate(DIST_NAME = {
           name_3_letters = substring(Contest,nchar(senate_name)+3,nchar(senate_name)+5)
           dist_name = toupper(Vectorize(match_counties)(name_3_letters))
-          
+          dist_name
+        },
+        DIST_NUM = {
           num_na = district_num(senate_name,Contest)
           # if district_num returns an NA, then it is the first district in the county
           dist_num = ifelse(is.na(num_na),1,num_na)
-          paste(dist_name,dist_num,sep="")
+          dist_num
         })
 
 senate_data_2012 = all_senate_data %>%
   filter(Year >= 2012) %>%
-  mutate(DIST_ID = as.character(district_num(senate_name,Contest)))
+  mutate(DIST_NUM = district_num(senate_name,Contest),
+         DIST_NAME=NA)
   
 
 district_data = rbind(house_prec_data,senate_data_2004_2010,senate_data_2012)
 
 district_map = district_data %>%
-  group_by(ElectionType,UniquePrecinct) %>%
-  summarize(DISTRICT_ID=DIST_ID[1],
-            is_consistent = all(DISTRICT_ID == DIST_ID)) %>%
-  ungroup()
-# if it precincts do not consistently map to districts, something is very wrong
-# # find out what precincts are bad
-#tab = data.frame(table(num_map$is_consistent,num_map$UniquePrecinct)) %>%
-#  filter(Var1==FALSE,
-#         Freq!=0)
-#write(as.character(tab$Var2),"badprecincts3.txt")
-stopifnot(sum(!district_map$is_consistent) < 12)
+  group_by(SENATE_OR_HOUSE,UniquePrecinct) %>%
+  summarize(DIST_NUM=DIST_NUM[1],
+            DIST_NAME=DIST_NAME[1])
 
 rep_list = c(
   "GEORGE W. BUSH",
@@ -114,68 +110,42 @@ dem_list = c(
 )
 get_pres_gov_party = function(name){
   ifelse(name %in% rep_list,"REP",
-         ifelse(name %in% dem_list , "DEM","OTHER"))
+         ifelse(name %in% dem_list, "DEM","OTHER"))
 }
 
 pres_contest_name = "President and Vice President of the United States"
 gov_contest_name = "Governor"
 
-#precincts_no_leg = prec_data %>%
-#  filter(Contest == pres_contest_name)  %>%
-#  left_join(district_map,by="UniquePrecinct")
-
-pres_summary = prec_data %>%
-  mutate(Race=ifelse(Contest == pres_contest_name,
-                     "PRESIDENT",
+prec_data_2004_2014 = prec_data %>%
+  mutate(officename=ifelse(Contest == pres_contest_name,
+                     "president",
                      ifelse(Contest == gov_contest_name,
-                       "GOVENOR",NA))) %>%
-  filter(!is.na(Race))  %>%
+                       "governor",NA))) %>%
+  filter(!is.na(officename))  %>%
   left_join(district_map,by="UniquePrecinct") %>%
-  group_by(Race,Year,ElectionType,DISTRICT_ID,Selection) %>%
-  summarise(vote_count = sum(Votes),
-            Party = get_pres_gov_party(Selection[1])) %>%
-  summarise(vote_dem = sum(ifelse(Party=="DEM",vote_count,0)),
-            percent_dem = vote_dem/sum(vote_count),
-            total_vote = sum(vote_count)) %>%
-  ungroup() %>%
-  gather(key=value_type,value=vote_value,vote_dem:total_vote)%>%
-  unite(RaceValue,Race,value_type) %>%
-  spread(RaceValue,vote_value)
-
-#table(pres_summary$SEP_DIST_ID)
-
-#out_district_data = district_data %>%
-#  group_by(Year,ElectionType,DISTRICT_ID,Selection) %>%
-  
-#filter(pres_summary,is.na(ElectionType))
-
-#pres_total = pres_summary %>%
-#  group_by(Year) %>%
-#  summarise(percent_dem = sum(vote_dem)/sum(total_vote))
-
-#ggplot(pres_summary,aes(x=Year,y=percent_dem)) +
-#  facet_grid(~ElectionType) + 
-#  geom_line(aes(col=SEP_DIST_ID)) + 
-#  geom_line(data=pres_total,mapping=aes(x=Year,y=percent_dem))
+  rename(county=Jurisdiction,
+         precname=Precinct) %>%
+  mutate(Party=get_pres_gov_party(Selection)) %>%
+  select(-UniquePrecinct,-Contest)
 
 ##############################################
 # Road data
 ##############################################
 
-#road_filenames = paste(folder,"Nevada Precinct Results ",(1984:1990)[c(TRUE, FALSE)],".tsv",sep="")
+road_filenames = paste(folder,"Nevada Precinct Results ",(1984:1990)[c(TRUE, FALSE)],".tsv",sep="")
 
-#load_road = function(filename){
-#  read_tsv(filename)
-#}
+load_road = function(filename){
+  read_tsv(filename)
+}
 
-#road_files = lapply(road_filenames,load_road)
+road_files = lapply(road_filenames,load_road)
 
 ##############################################
 # 1992-2002 Data Carson City
 ##############################################
 
 #Import Carson City Data
-carsoncity1996to2002 <- read_excel("~/Desktop/state-forecasting-beta/state-legislative-data/Precinct Level Election Results/carsoncity1996to2002.xls")
+carsoncity1996to2002 <- read_excel("state-legislative-data/Precinct Level Election Results/carsoncity1996to2002.xls")
 
 #MAIN DATA
 #Wrangle data into a format that works the purpose of this project
@@ -253,7 +223,7 @@ Washoe_Precinct_to_District_Cheatsheet <- read_excel("state-legislative-data/Pre
 
   #Select relevant columns and filter out all the entry with DIST_NUM = 0
 Washoe_Precinct_to_District_Cheatsheet <- Washoe_Precinct_to_District_Cheatsheet %>%
-  select(-precnum1) %>%
+ # select(-precnum) %>%
   filter(DIST_NUM != 0)
 
 #Join precinct_to_district cheatsheet with the larger Washoe County precinct data file
@@ -321,7 +291,7 @@ precinct_data_1992to2002 <- precinct_data_1992to2002 %>%
 
 #Export CSV file of the Washoe County precinct data 1994-2002 with legislative district tags 
 write.csv(precinct_data_1992to2002, "Precinct Level Results 1992-2002 Washoe, Clark County & Carson City.csv")
-  
+
 ##############################################
 # Random codes
 ##############################################
