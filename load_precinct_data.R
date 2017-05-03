@@ -157,13 +157,18 @@ load_road = function(road_year){
            senate_district_num=SD,
            house_num=LD,
            house_nname=LDS,
-           pname_local=PNAME) %>%
-    select(-(ST:WD),CY,-(AF:BB)) %>%
-    left_join(FIPS_County_Code, by=c("county_code" = "county_code"))
+           pname_local=PNAME,
+           county_code=CY) %>%
+    select(-(ST:WD),county_code,-(AF:BB)) %>%
+    filter(house_num != 0 & senate_district_num != 0) %>%
+    mutate(house_num=ifelse(house_num == 30 | house_num  >= 60,house_num / 30,house_num),
+           senate_district_num=ifelse(senate_district_num==6300,10,senate_district_num-200),
+           county_code=ifelse(county_code %in% c(31,33),county_code,county_code/30))
 }
 
 road_files = lapply(road_years,load_road)
 road_data = rbindlist(road_files)
+#table(road_data$senate_district_num)
 
 ##############################################
 # 1992-2002 Data Carson City
