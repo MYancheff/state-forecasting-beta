@@ -171,8 +171,19 @@ load_road = function(road_year){
     left_join(FIPS_County_Code, by=c("county_code" = "county_code")) %>%
     #Recode vote_type into new variable `officename`, which indicates types of election
     mutate(officename = ifelse(vote_type %in% c("G84P_DV", "G84P_RV", "G88P_RV", "G88P_DV"), "president", "governor")) %>%
-    gather(key = SENATE_OR_HOUSE, value = DISTRICT_NUM, senate_district_num, house_num) %>%
-    mutate(SENATE_OR_HOUSE = ifelse(SENATE_OR_HOUSE == "senate_district_num", 9, 8))
+    mutate(DIST_NAME = ifelse(senate_district_num %in% c(1:7), "CLARK",
+                  ifelse(senate_district_num %in% c(8:10), "WASHOE", 
+                         ifelse(senate_district_num = 11, "CAPITOL",
+                                ifelse(senate_district_num = 12, "WESTERN",
+                                       ifelse(senate_district_num = 13, "CENTRAL",
+                                              "NORTHERN"))))))
+    #mutate(DIST_NUM = ifelse(senate_district_num %in% c(1:7), senate_district_num,
+                              #ifelse(senate_district_num == 8, 1,
+                                     #ifelse(senate_district_num = 9, 2,
+                                            #ifelse(senate_district_num %in% c(11:14), 1, 
+                                                   #3)))))
+    #gather(key = SENATE_OR_HOUSE, value = DISTRICT_NUM, senate_district_num, house_num) %>%
+    #mutate(SENATE_OR_HOUSE = ifelse(SENATE_OR_HOUSE == "senate_district_num", 9, 8))
 }
 
 road_files = lapply(road_years,load_road)
