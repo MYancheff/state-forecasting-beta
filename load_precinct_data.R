@@ -140,7 +140,9 @@ FIPS_County_Code <- read_excel("state-legislative-data/Precinct Level Election R
 filename = paste(folder,"temp_NV_only20170503.dta",sep="")
 #install.packages("haven")
 road_data = read_dta(filename) %>%
-  gather(key=vote_type,value= VOTES,-(year:plc)) %>%
+  gather(key=vote_type,value=VOTES,-(year:plc)) %>%
+  mutate(VOTES=as.integer(VOTES)) %>%
+  filter(!is.na(VOTES)) %>%
   mutate(
     #Recode vote_type into new variable `officename`, which indicates types of election
     officename=ifelse(grepl("gyyg_",vote_type),"governor",
@@ -159,6 +161,8 @@ road_data = read_dta(filename) %>%
          precinct=pname) %>%
   filter(house_num != 0 & senate_district_num != 0) %>%
   left_join(FIPS_County_Code, by=c("county_code" = "county_code")) %>%
+  mutate(house_num=as.integer(house_num),
+         senate_district_num=as.integer(senate_district_num)-200) %>%
   mutate(DIST_NAME = ifelse(senate_district_num %in% c(1:7), "CLARK",
                             ifelse(senate_district_num %in% c(8:10), "WASHOE", 
                                    ifelse(senate_district_num == 11, "CAPITOL",
