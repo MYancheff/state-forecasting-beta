@@ -1,7 +1,10 @@
 library(tidyverse)
 library(data.table)
 library(readxl)
+library(dplyr)
 library(stringi)
+install.packages("tidyverse")
+#install.packages("data.table")
 
 ##################################################################
 # Load precinct data
@@ -131,7 +134,6 @@ prec_data_2004_2014 = prec_data %>%
 ##############################################
 # Road data
 ##############################################
-
 road_years = c(1984,1986,1988,1990)
 
 load_road = function(road_year){
@@ -156,7 +158,8 @@ load_road = function(road_year){
            house_num=LD,
            house_nname=LDS,
            pname_local=PNAME) %>%
-    select(-(ST:WD),CY,-(AF:BB))
+    select(-(ST:WD),CY,-(AF:BB)) %>%
+    left_join(FIPS_County_Code, by=c("county_code" = "county_code"))
 }
 
 road_files = lapply(road_years,load_road)
