@@ -3,8 +3,7 @@ library(data.table)
 library(readxl)
 library(dplyr)
 library(stringi)
-install.packages("tidyverse")
-#install.packages("data.table")
+library(haven)
 
 ##################################################################
 # Load precinct data
@@ -138,61 +137,45 @@ prec_data_2004_2014 = prec_data %>%
 FIPS_County_Code <- read_excel("state-legislative-data/Precinct Level Election Results/FIPS County Code.xlsx")
 
 #Import and Wrangle the ROAD Data
-road_years = c(1984,1986,1988,1990)
+filename = paste(folder,"temp_NV_only20170503.dta",sep="")
+#install.packages("haven")
+road_data = read_dta(filename) %>%
+  gather(key=vote_type,value= VOTES,-(year:plc)) %>%
+  mutate(
+    #Recode vote_type into new variable `officename`, which indicates types of election
+    officename=ifelse(grepl("gyyg_",vote_type),"governor",
+                      ifelse(grepl("gyyp_",vote_type),"president",
+                             NA)),# add more ifelse(grepl(...)...) here to add more elections
+    PARTY_CODE=ifelse(grepl("_dv",vote_type),"DEM",
+                      ifelse(grepl("_rv",vote_type),"REP",
+                             ifelse(grepl("_o[1-9]v",vote_type),"OTHER",
+                                    NA))),
+    county_code = as.numeric(countyfips)) %>%
+  filter(!is.na(officename),
+         !is.na(PARTY_CODE)) %>%
+  rename(senate_district_num=sd,
+         house_num=hd,
+         house_nname=hds,
+         precinct=pname) %>%
+  filter(house_num != 0 & senate_district_num != 0) %>%
+  left_join(FIPS_County_Code, by=c("county_code" = "county_code")) %>%
+  mutate(DIST_NAME = ifelse(senate_district_num %in% c(1:7), "CLARK",
+                            ifelse(senate_district_num %in% c(8:10), "WASHOE", 
+                                   ifelse(senate_district_num == 11, "CAPITOL",
+                                          ifelse(senate_district_num == 12, "WESTERN",
+                                                 ifelse(senate_district_num == 13, "CENTRAL",
+                                                        "NORTHERN")))))) %>%
+  mutate(DISTRICT_NUM = ifelse(senate_district_num == 10, 3,
+                               ifelse(senate_district_num %in% c(11:14), 1, 
+                                      ifelse(senate_district_num == 8, 1,
+                                             ifelse(senate_district_num == 9, 2,
+                                                    senate_district_num))))) %>%
+  gather(key = SENATE_OR_HOUSE, value = DIST_NUM_ROAD, senate_district_num, house_num) %>%
+  mutate(SENATE_OR_HOUSE = ifelse(SENATE_OR_HOUSE == "senate_district_num", 9, 8),
+         DIST_NAME = ifelse(SENATE_OR_HOUSE == 9, DIST_NAME, NA), 
+         DISTRICT_NUM = ifelse(SENATE_OR_HOUSE == 8, DIST_NUM_ROAD, DISTRICT_NUM)) %>%
+  select(year, county, precinct, SENATE_OR_HOUSE, DIST_NAME, DISTRICT_NUM, officename, PARTY_CODE, VOTES)
 
-road_year = 1984
-
-load_road = function(road_year){
-  road_filename = paste(folder,"Nevada Precinct Results ",road_year,".tsv",sep="")
-  
-  #table(alt_file$party)
-  alt_file = read_tsv(road_filename) %>%
-    gather(key=vote_type,value= VOTES,-(ST:PNAME)) %>%
-    mutate(
-      #Recode vote_type into new variable `officename`, which indicates types of election
-      officename=ifelse(grepl("G[0-9][0-9]G_",vote_type),"governor",
-                 ifelse(grepl("G[0-9][0-9]P_",vote_type),"president",
-                  NA)),# add more ifelse(grepl(...)...) here to add more elections
-      PARTY_CODE=ifelse(grepl("_DV",vote_type),"DEM",
-            ifelse(grepl("_RV",vote_type),"REP",
-             ifelse(grepl("_O[1-9]V",vote_type),"OTHER",
-                  NA))),
-      year=road_year) %>%
-    filter(!is.na(officename),
-           !is.na(PARTY_CODE)) %>%
-    rename(senate_district_num=SD,
-           house_num=LD,
-           house_nname=LDS,
-           precinct=PNAME,
-           county_code=CY) %>%
-    select(-(ST:BB),county_code,-vote_type, -CD) %>%
-    filter(house_num != 0 & senate_district_num != 0) %>%
-    mutate(house_num=ifelse(house_num == 30 | house_num  >= 60,house_num / 30,house_num),
-           senate_district_num=ifelse(senate_district_num==6300,10,senate_district_num-200),
-           county_code=ifelse(county_code %in% c(31,33),county_code,county_code/30)) %>%
-    left_join(FIPS_County_Code, by=c("county_code" = "county_code")) %>%
-    mutate(DIST_NAME = ifelse(senate_district_num %in% c(1:7), "CLARK",
-                  ifelse(senate_district_num %in% c(8:10), "WASHOE", 
-                         ifelse(senate_district_num == 11, "CAPITOL",
-                                ifelse(senate_district_num == 12, "WESTERN",
-                                       ifelse(senate_district_num == 13, "CENTRAL",
-                                              "NORTHERN")))))) %>%
-    mutate(DISTRICT_NUM = ifelse(senate_district_num == 10, 3,
-                              ifelse(senate_district_num %in% c(11:14), 1, 
-                                     ifelse(senate_district_num == 8, 1,
-                                            ifelse(senate_district_num == 9, 2,
-                                                          senate_district_num))))) %>%
-    gather(key = SENATE_OR_HOUSE, value = DIST_NUM_ROAD, senate_district_num, house_num) %>%
-    mutate(SENATE_OR_HOUSE = ifelse(SENATE_OR_HOUSE == "senate_district_num", 9, 8),
-           DIST_NAME = ifelse(SENATE_OR_HOUSE == 9, DIST_NAME, NA), 
-           DISTRICT_NUM = ifelse(SENATE_OR_HOUSE == 8, DIST_NUM_ROAD, DISTRICT_NUM)) %>%
-    select(year, county, precinct, SENATE_OR_HOUSE, DIST_NAME, DISTRICT_NUM, officename, PARTY_CODE, VOTES)
-  alt_file
-}
-
-road_files = lapply(road_years,load_road)
-road_data = rbindlist(road_files)
-table(road_data$party)
 
 #Reformat the data 
 ##############################################
