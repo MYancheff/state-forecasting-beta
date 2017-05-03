@@ -147,27 +147,25 @@ load_road = function(road_year){
   
   #table(alt_file$party)
   alt_file = read_tsv(road_filename) %>%
-    gather(key=vote_type,value=num_votes,-(ST:PNAME)) %>%
+    gather(key=vote_type,value= VOTES,-(ST:PNAME)) %>%
     mutate(
       #Recode vote_type into new variable `officename`, which indicates types of election
       officename=ifelse(grepl("G[0-9][0-9]G_",vote_type),"governor",
                  ifelse(grepl("G[0-9][0-9]P_",vote_type),"president",
                   NA)),# add more ifelse(grepl(...)...) here to add more elections
-      party=ifelse(grepl("_DV",vote_type),"DEM",
+      PARTY_CODE=ifelse(grepl("_DV",vote_type),"DEM",
             ifelse(grepl("_RV",vote_type),"REP",
              ifelse(grepl("_O[1-9]V",vote_type),"OTHER",
                   NA))),
-      Year=road_year) %>%
+      year=road_year) %>%
     filter(!is.na(officename),
-           !is.na(party)) %>%
-    rename(precnum=PR,
-           precname=PRS,
-           senate_district_num=SD,
+           !is.na(PARTY_CODE)) %>%
+    rename(senate_district_num=SD,
            house_num=LD,
            house_nname=LDS,
-           pname_local=PNAME,
+           precinct=PNAME,
            county_code=CY) %>%
-    select(-(ST:WD),county_code,-vote_type,-(AF:BB), -CD, -precnum, -precname) %>%
+    select(-(ST:BB),county_code,-vote_type, -CD) %>%
     filter(house_num != 0 & senate_district_num != 0) %>%
     mutate(house_num=ifelse(house_num == 30 | house_num  >= 60,house_num / 30,house_num),
            senate_district_num=ifelse(senate_district_num==6300,10,senate_district_num-200),
@@ -178,14 +176,17 @@ load_road = function(road_year){
                          ifelse(senate_district_num == 11, "CAPITOL",
                                 ifelse(senate_district_num == 12, "WESTERN",
                                        ifelse(senate_district_num == 13, "CENTRAL",
-                                              "NORTHERN"))))))
-    #mutate(DIST_NUM = ifelse(senate_district_num %in% c(1:7), senate_district_num,
-                              #ifelse(senate_district_num == 8, 1,
-                                     #ifelse(senate_district_num == 9, 2,
-                                            #ifelse(senate_district_num %in% c(11:14), 1, 
-                                                   #3)))))
-    #gather(key = SENATE_OR_HOUSE, value = DISTRICT_NUM, senate_district_num, house_num) %>%
-    #mutate(SENATE_OR_HOUSE = ifelse(SENATE_OR_HOUSE == "senate_district_num", 9, 8))
+                                              "NORTHERN")))))) %>%
+    mutate(DISTRICT_NUM = ifelse(senate_district_num == 10, 3,
+                              ifelse(senate_district_num %in% c(11:14), 1, 
+                                     ifelse(senate_district_num == 8, 1,
+                                            ifelse(senate_district_num == 9, 2,
+                                                          senate_district_num))))) %>%
+    gather(key = SENATE_OR_HOUSE, value = DIST_NUM_ROAD, senate_district_num, house_num) %>%
+    mutate(SENATE_OR_HOUSE = ifelse(SENATE_OR_HOUSE == "senate_district_num", 9, 8),
+           DIST_NAME = ifelse(SENATE_OR_HOUSE == 9, DIST_NAME, NA), 
+           DISTRICT_NUM = ifelse(SENATE_OR_HOUSE == 8, DIST_NUM_ROAD, DISTRICT_NUM)) %>%
+    select(year, county, precinct, SENATE_OR_HOUSE, DIST_NAME, DISTRICT_NUM, officename, PARTY_CODE, VOTES)
   alt_file
 }
 
@@ -225,9 +226,6 @@ carsoncity1996to2002_tidy <- carsoncity1996to2002 %>%
   summarize(VOTES = sum(votes)) %>%
   ungroup()
   
-#Convert variable `officename` from characters into factors
-carsoncity1996to2002_tidy$officename <- as.factor(carsoncity1996to2002_tidy$officename)
-
 #PRECINCT TO DISTRICT CHEATSHEET
 #extract the precinct's state assembly & senate districts
 precinct_district_1992to2002_Carson <- carsoncity1996to2002_tidy %>%
@@ -238,7 +236,7 @@ precinct_district_1992to2002_Carson <- carsoncity1996to2002_tidy %>%
                             "CARSON CITY"))) %>%
   mutate(DISTRICT_NUM = stri_sub(officename, -2)) %>%
   #recode ct to number 1 to indicate DISTRICT NAME = WESTERN, DIST_NUM = 1
-  mutate(ifelse(DISTRICT_NUM == "ct", 1, DISTRICT_NUM)) %>%
+  mutate(DISTRICT_NUM = ifelse(DISTRICT_NUM == "ct", 1, DISTRICT_NUM)) %>%
   select(year, precname, SENATE_OR_HOUSE, DIST_NAME, DISTRICT_NUM) %>%
   distinct()
 
@@ -251,12 +249,6 @@ precinct_district_1992to2002_Carson <- carsoncity1996to2002_tidy %>%
 carsoncity1996to2002_tidy <- carsoncity1996to2002_tidy %>%
   left_join(precinct_district_1992to2002_Carson, by=c("year" = "year",
                                                       "precname" = "precname")) 
-
-#Export CSV file of this precinct-to-district Cheatsheet for Carson City 
-write.csv(precinct_district_1992to2002_Carson, "precinct to district cheatsheet Carson City 1992-2002.csv")
-
-#Export CSV file of the Carson City precinct data 1996-2002 with legislative district tags 
-write.csv(carsoncity1996to2002_tidy, "Carson City Precinct Level Results 1996-2002.csv")
 
 ##############################################
 # 1992-2002 Data WASHOE COUNTY
@@ -273,6 +265,7 @@ washoe1994to2002 <- washoe1994to2002 %>%
 Washoe_Precinct_to_District_Cheatsheet <- read_excel("state-legislative-data/Precinct Level Election Results/Washoe Precinct to District Cheatsheet.xlsx")
 
 table(Washoe_Precinct_to_District_Cheatsheet$DIST_NUM)
+
   #Select relevant columns and filter out all the entry with DIST_NUM = 0
 Washoe_Precinct_to_District_Cheatsheet <- Washoe_Precinct_to_District_Cheatsheet %>%
   #filters out precincts which aren't associated with a district (due to data entry ease)
@@ -287,41 +280,38 @@ washoe1994to2002_tidy <- washoe1994to2002 %>%
   rename(REP = repub,
          DEM = dem,
          OTHER = other)
-    
-  
-#Export CSV file of the Washoe County precinct data 1994-2002 with legislative district tags 
-write.csv(washoe1994to2002_tidy, "Washoe County Precinct Level Results 1994-2002.csv")
 
+##############################################
+#All available precinct level voting returns, 1992-2002
+##############################################
 
-#Create an aggregate csv file of all available precinct-level data from Nevada, 1992-2002
-
-  #Tidy Data (get all the data files into the same formats (same number of collumns))
+#Tidy Data (get all the data files into the same formats (same number of collumns))
 carsoncity1996to2002_tidy <- carsoncity1996to2002_tidy %>% 
-    #spread PARTY_CODES to derive 3 separate collumns for REP, DEM, OTHER
+  #spread PARTY_CODES to derive 3 separate collumns for REP, DEM, OTHER
   spread(key = `PARTY_CODE`, value = `VOTES`, fill = 0) %>%
-    #mutate a new column capturing turnout
+  #mutate a new column capturing turnout
   mutate(Turnout = DEM + OTHER + REP) %>%
-    #mutate a nonexistent precnum column
+  #mutate a nonexistent precnum column
   mutate(precnum = NA) %>%
-    #mutate a county column:
+  #mutate a county column:
   mutate(county = "Carson_City")
 
-    #mutate a county column for Clark County Data
+  #mutate a county column for Clark County Data
 NVclarkcounty1992to2002_tidy <- NV_Clark_County_Precinct_Level_Results_1992_2002 %>%
   mutate(county = "clark") %>%
-    #mutate a DIST_NAME column: 
+  #mutate a DIST_NAME column: 
   mutate(DIST_NAME = "CLARK") %>%
-    #Mutate a column capturing the type of contests/races
- mutate(officename = ifelse(grepl('1992|1996|2000', year), "president", "governor")) %>%
-    #Select the relevants columns
+  #Mutate a column capturing the type of contests/races
+  mutate(officename = ifelse(grepl('1992|1996|2000', year), "president", "governor")) %>%
+  #Select the relevants columns
   select(-rowtype, -RV, -Percent)
 
-    #Add up voter turnout in Washoe County Data
+  #Add up voter turnout in Washoe County Data
 washoe1994to2002_tidy <- washoe1994to2002_tidy %>%
   mutate(Turnout = REP + DEM + OTHER) %>%
-    #Mutate a column capturing the type of contests/races
+  #Mutate a column capturing the type of contests/races
   mutate(officename = ifelse(grepl('1992|1996|2000', year), "president", "governor")) %>%
-    #Reformat so that all the columns are in the same order
+  #Reformat so that all the columns are in the same order
   rename(DISTRICT_NUM = DIST_NUM)
 
 #Bind all 3 files together
@@ -343,7 +333,4 @@ write.csv(precinct_data_1992to2002, "Precinct Level Results 1992-2002 Washoe, Cl
 ##############################################
 # Random codes
 ##############################################
-carsoncity1996to2002_tidy$PARTY_CODE <- as.factor(carsoncity1996to2002_tidy$PARTY_CODE)
-carsoncity1996to2002_tidy$VOTES <- as.integer(carsoncity1996to2002_tidy$VOTES)
-
-gather(key = PARTY_CODE, value = VOTES, `DEM`, `REP`, `OTHER`)    
+    
