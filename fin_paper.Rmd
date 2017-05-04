@@ -116,6 +116,9 @@ model_single_level = function(train_data){
 }
 model1 = model_single_level(house_train_data)
 AIC(model1)
+guessed_outcome = predict(model1,house_test_data)
+actual_outcome = house_test_data$senate_composition - house_test_data$lagged_senate_composition
+error = sqrt(sum((guessed_outcome-actual_outcome)^2)/nrow(house_test_data))
 ```
 
 ```{r}
