@@ -13,6 +13,7 @@ source("load_carls.R")
 source("load_precinct_data.R")
 source("load_econ_data.R")
 
+na_to_zero = function(x) ifelse(is.na(x),0,x)
 ```
 
 ```{r district_level_data}
@@ -38,7 +39,10 @@ unnamed_data = use_data %>%
 
 district_level_data = rbind(unnamed_data,named_data) %>%
   mutate(party_val = ifelse(wining_party == "DEM",1,
-                            ifelse(wining_party == "REP",-1,0)))
+                            ifelse(wining_party == "REP",-1,0)),
+         governor_perc_vote_dem = na_to_zero(governor_vote_dem/governor_total_vote),
+         president_perc_vote_dem = na_to_zero(president_vote_dem/president_total_vote)) %>%
+  select(-(governor_total_vote:president_vote_dem))
 ```
 
 The format of the tidied dataset we want to model is this:
@@ -70,26 +74,48 @@ state_level_data = economic_data %>%
 ```{r assembly_level_summary}
 year_summary = precinct_joined %>%
   group_by(Assembly,ELECTION_YEAR) %>%
-  summarise(senate_composition = sum(party_val))
+  summarise(senate_composition = sum(party_val))%>%
+  arrange(ELECTION_YEAR) %>%
+  mutate(lagged_senate_composition = lag(senate_composition)) %>%
+  ungroup()
 ```
 
+
 ```{r}
-beforeyear = 2014
+testyear = 2014
   
-single_level_model_data = precinct_joined %>%
+single_level_model_data = district_level_data %>%
   left_join(year_summary ,by=c("ELECTION_YEAR","Assembly")) %>%
-  left_join(state_level_data ,by=c("ELECTION_YEAR"="YEAR"))
+  left_join(state_level_data ,by=c("ELECTION_YEAR"="YEAR")) %>%
+  mutate(DIST_ID = factor(paste(DISTRICT_NAME,DISTRICT_NUM))) %>%
+  select(-DISTRICT_NUM,-DISTRICT_NAME) %>%
+  filter(ELECTION_YEAR >= 2004)# we don't have district numbers for 1968 and 1970! (this should be fixable)
 
-train_data = single_level_model_data %>%
-  filter(ELECTION_YEAR < beforeyear) %>%
-  filter(ELECTION_YEAR > 1970) %>% # we don't have district numbers for 1968 and 1970! (this should be fixable)
-  group_by(DISTRICT_NUM,DISTRICT_NAME,ELECTION_YEAR) %>%
-  ungroup()
+all_train_data = single_level_model_data %>%
+  filter(ELECTION_YEAR < testyear)
 
-pred_perc = lm(senate_composition ~ 
-                 INCUMBENCY_DUMMY + 
-                 
-                 ,data=train_data)
+all_test_data =  single_level_model_data %>%
+  filter(ELECTION_YEAR == testyear)
+
+house_train_data = filter(all_train_data,Assembly=="HOUSE")
+senate_train_data = filter(all_train_data,Assembly=="SENATE")
+
+house_test_data = filter(all_test_data,Assembly=="HOUSE")
+senate_test_data = filter(all_test_data,Assembly=="SENATE")
+
+train_data = senate_train_data
+model_single_level = function(train_data){
+  lm(senate_composition - lagged_senate_composition ~ 
+       MHI_Change_LOCAL +
+       GDPperCapita_CHANGE_US + 
+       incumbent_factor+
+       DIST_ID*( 
+       governor_perc_vote_dem + 
+       president_perc_vote_dem)
+       ,data=train_data)
+}
+model1 = model_single_level(house_train_data)
+AIC(model1)
 ```
 
 ```{r}
