@@ -13,7 +13,9 @@ source("load_carls.R")
 source("load_precinct_data.R")
 source("load_econ_data.R")
 
+```
 
+```{r district_level_data}
 pres_summary = prec_data_2004_2014 %>% 
   group_by(officename,Year,SENATE_OR_HOUSE,DIST_NAME,DIST_NUM,Selection) %>%
   summarise(vote_count = sum(Votes),
@@ -34,26 +36,60 @@ unnamed_data = use_data %>%
             by=c("ELECTION_YEAR"="Year","Assembly"="SENATE_OR_HOUSE","DISTRICT_NUM"="DIST_NUM")) %>%
   select(-DIST_NAME)
 
-
-model_data = rbind(named_data,unnamed_data) %>%
-  left_join(economic_data ,by=c("ELECTION_YEAR"="YEAR"))
+district_level_data = rbind(unnamed_data,named_data) %>%
+  mutate(party_val = ifelse(wining_party == "DEM",1,
+                            ifelse(wining_party == "REP",-1,0)))
 ```
 
 The format of the tidied dataset we want to model is this:
 
 Every row is a (Year, Assembly, District) triple. This is a nice unit because it is the unit we want to run models on. However, none of our data is in this form. All of our data is in a (Year, Canidate) format. So in each dataset, before joining, we need to summarise the sort of covariates we want from that bit of canidate level data.
 
+```{r state_level_data}
+pres_party_in_power_data = read_csv("state-legislative-data/pres_in_power.csv")
+
+state_level_data = economic_data %>%
+  left_join(pres_party_in_power_data,by=c("YEAR"="year")) %>%
+  
+  # spread party_in_power variable over all the years they are in power, not just every 4 years
+  group_by((YEAR-1) %/% 4) %>%
+  mutate(pres_party_in_power = paste(ifelse(is.na(pres_party_in_power),"",pres_party_in_power),collapse="")) %>%
+  ungroup() %>%
+  
+  #calculate midterm and presidentail election penalties
+  mutate(is_midterm = (YEAR %% 4) == 2,
+         is_pres_election = (YEAR %% 4) == 0,
+         pres_party_num = ifelse(pres_party_in_power=="DEM",1,
+                                 ifelse(pres_party_in_power=="REP",-1,0)),
+         midterm_penalty = pres_party_num * is_midterm,
+         pres_elect_penalty = pres_party_num * is_pres_election) %>%
+  
+  select(YEAR:Unemployment_LOCAL,midterm_penalty,pres_elect_penalty)
+```
+
+```{r assembly_level_summary}
+year_summary = precinct_joined %>%
+  group_by(Assembly,ELECTION_YEAR) %>%
+  summarise(senate_composition = sum(party_val))
+```
+
 ```{r}
 beforeyear = 2014
+  
+single_level_model_data = precinct_joined %>%
+  left_join(year_summary ,by=c("ELECTION_YEAR","Assembly")) %>%
+  left_join(state_level_data ,by=c("ELECTION_YEAR"="YEAR"))
 
-train_data = model_data %>%
+train_data = single_level_model_data %>%
   filter(ELECTION_YEAR < beforeyear) %>%
   filter(ELECTION_YEAR > 1970) %>% # we don't have district numbers for 1968 and 1970! (this should be fixable)
-  group_by(DIST_NUM,ELECTION_YEAR) %>%
-  mutate(percent_vote = CANIDATE_VOTE_TOTAL/sum(CANIDATE_VOTE_TOTAL)) %>%
+  group_by(DISTRICT_NUM,DISTRICT_NAME,ELECTION_YEAR) %>%
   ungroup()
 
-pred_perc = lm(percent_vote ~ INCUMBENCY_DUMMY,data=train_data)
+pred_perc = lm(senate_composition ~ 
+                 INCUMBENCY_DUMMY + 
+                 
+                 ,data=train_data)
 ```
 
 ```{r}
