@@ -89,7 +89,8 @@ district_data = rbind(house_prec_data,senate_data_2004_2010,senate_data_2012)
 district_map = district_data %>%
   group_by(SENATE_OR_HOUSE,UniquePrecinct) %>%
   summarize(DIST_NUM=DIST_NUM[1],
-            DIST_NAME=DIST_NAME[1])
+            DIST_NAME=DIST_NAME[[1]]) %>%
+  mutate(DIST_NAME = ifelse(DIST_NAME == "",NA,DIST_NAME))
 
 rep_list = c(
   "GEORGE W. BUSH",
