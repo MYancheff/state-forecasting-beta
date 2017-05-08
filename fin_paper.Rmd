@@ -13,6 +13,7 @@ source("load_carls.R")
 source("load_precinct_data.R")
 source("load_econ_data.R")
 
+
 ```
 
 ```{r district_level_data}
@@ -56,6 +57,7 @@ state_level_data = economic_data %>%
   
   # spread party_in_power variable over all the years they are in power, not just every 4 years
   group_by((YEAR-1) %/% 4) %>%
+  ifelse(YEAR =< 2004 & YEAR >= 2002)
   mutate(pres_party_in_power = paste(ifelse(is.na(pres_party_in_power),"",pres_party_in_power),collapse="")) %>%
   ungroup() %>%
   
@@ -173,8 +175,8 @@ Figure out how to deal with multi-member districts.
 
 
 
-Visliaizations???
-Map with clark county (maybe carson city) zoomed out.
+Visualizations???
+Map with Clark county (maybe Carson city) zoomed out.
 Line graph with color filled in. 
 
 Model visualizations:
@@ -183,7 +185,7 @@ Model visualizations:
 
 Precinct data:
 Codebook.
-Mergeing data together.
+Merging data together.
 Precincts don't vote for every election every year. The way I figured out how to figure out senate district does not work.
 
 
