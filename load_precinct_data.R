@@ -88,8 +88,11 @@ with_years = mapply(function(df,year){mutate(df,Year=year)},prec_files,all_years
 prec_data = rbindlist(with_years) %>%
   mutate(Votes = ifelse(is.na(Votes),0,Votes)) %>%
   #filter in only relevant races (president, governor, assembly and senate districts)
-  filter(grepl('Senate|Assembly|Governor|President|Congress', Contest),
-         !grepl('Lieutenant', Contest)) %>%
+  filter(grepl('Governor|President|Congress', Contest),
+         !grepl('Lieutenant', Contest)) %>% 
+  mutate(PARTY_CODE = ifelse(Selection %in% rep_list, "REP",
+                             ifelse(Selection %in% dem_list, "DEM", 
+                                    "OTHER")))
   
   
 cheatsheet2004_2010 <- prec_data %>%
