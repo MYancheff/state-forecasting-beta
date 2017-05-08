@@ -47,9 +47,9 @@ rep_list = c(
   "Edwards, Chris",
   "Wegner, Kenneth A.",
   "Russ Mickelson",
-  "Danny Tarkanian",
-  ""
+  "Danny Tarkanian"
 )
+
 dem_list = c(
   "JOHN F. KERRY",
   "Obama, Barack",
@@ -68,9 +68,15 @@ dem_list = c(
   "Hafen, Tessa M.",
   "Oceguera, John",
   "ANGIE G. COCHRAN",
-  ""
-  
+  "DERBY, JILL",
+  "Price, Nancy",
+  "KOEPNICK, SAMUEL",
+  "Spees, Kristen",
+  "EVANS, H.D. 'CHIP'",
+  "Horsford, Steven A.",
+  "KIHUEN, RUBEN"
 )
+
 get_pres_gov_party = function(name){
   ifelse(name %in% rep_list,"REP",
          ifelse(name %in% dem_list, "DEM","OTHER"))
