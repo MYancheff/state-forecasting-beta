@@ -6,13 +6,13 @@ library(stringi)
 library(haven)
 
 ##################################################################
-# Load precinct data
+# Load precinct data 2004-2016
 ##################################################################
 
 folder = "state-legislative-data/Precinct Level Election Results/"
 
-first_years = (2004:2012)[c(TRUE, FALSE)]
-later_years = c(2014,2016)
+first_years = (2004:2010)[c(TRUE, FALSE)]
+later_years = c(2012:2016)
 all_years = c(first_years,later_years)
 
 file_end = "(CSV Format).csv"
@@ -181,8 +181,146 @@ road_data = read_dta(filename) %>%
          DISTRICT_NUM = ifelse(SENATE_OR_HOUSE == 8, DIST_NUM_ROAD, DISTRICT_NUM)) %>%
   select(year, county, precinct, SENATE_OR_HOUSE, DIST_NAME, DISTRICT_NUM, officename, PARTY_CODE, VOTES)
 
+##############################################
+# 1992-2002 Data Clark County
+##############################################
+#Import the 1992-2002 Clark County Data, converted into machine-readable format
+nvclark1992to2002 <- read_excel("state-legislative-data/Precinct Level Election Results/nvclark1992to2002.xls")
 
-#Reformat the data 
+#Import precinct-to-district cheatsheets
+  #1992-1994
+CLARK_COUNTY_1992_1994_ASSEMBLY_DISTRICT <- read_excel("state-legislative-data/Precinct Level Election Results/CLARK COUNTY 1992-1994 ASSEMBLY DISTRICT.xlsx")
+CLARK_COUNTY_1992_1994_SENATE_DISTRICT <- read_excel("state-legislative-data/Precinct Level Election Results/CLARK COUNTY 1992-1994 SENATE DISTRICT.xlsx")
+
+cheatsheet1992_1994CLARK <- CLARK_COUNTY_1992_1994_ASSEMBLY_DISTRICT %>%
+  left_join(CLARK_COUNTY_1992_1994_SENATE_DISTRICT, by=c("PRECINCT" = "PRECINCT")) %>%
+  gather(key = SENATE_OR_HOUSE, value = DISTRICT_NUM, `8`, `9`) %>%
+  mutate(precname = substring(PRECINCT, 1, 3), 
+         precnum = stri_sub(PRECINCT, -3)) %>%
+  mutate(precnum = as.integer(precnum))
+  select(-PRECINCT)
+
+  #1996-2000
+CLARK_COUNTY_1996_2000_ASSEMBLY_DISTRICT <- read_excel("state-legislative-data/Precinct Level Election Results/CLARK COUNTY 1996-2000 ASSEMBLY DISTRICT.xlsx")  
+CLARK_COUNTY_1996_2000_SENATE_DISTRICT <- read_excel("state-legislative-data/Precinct Level Election Results/CLARK COUNTY 1996-2000 SENATE DISTRICT.xlsx") 
+
+cheatsheet1996_2000CLARK <- CLARK_COUNTY_1996_2000_ASSEMBLY_DISTRICT %>%
+  left_join(CLARK_COUNTY_1996_2000_SENATE_DISTRICT, by=c("PRECINCT" = "PRECINCT")) %>%
+  gather(key = SENATE_OR_HOUSE, value = DISTRICT_NUM, `8`, `9`)
+  
+  #2002
+CLARK_COUNTY_2002_ASSEMBLY_DISTRICT <- read_excel("state-legislative-data/Precinct Level Election Results/CLARK COUNTY 2002 ASSEMBLY DISTRICT.xlsx")
+CLARK_COUNTY_2002_SENATE_DISTRICT <- read_excel("state-legislative-data/Precinct Level Election Results/CLARK COUNTY 2002 SENATE DISTRICT.xlsx")
+CLARK_COUNTY_2002_SENATE_DISTRICT <- CLARK_COUNTY_2002_SENATE_DISTRICT %>%
+  mutate(PRECINCT = substring(PRECINCT, 1, 4)) %>%
+  mutate(PRECINCT=as.integer(PRECINCT))
+
+cheatsheet2002CLARK <- CLARK_COUNTY_2002_ASSEMBLY_DISTRICT %>%
+  left_join(CLARK_COUNTY_2002_SENATE_DISTRICT, by=c("PRECINCT" = "PRECINCT")) %>%
+  gather(key = SENATE_OR_HOUSE, value = DISTRICT_NUM, `8`, `9`)
+
+#Isolate and Wrangle Data for 1992
+nvclark1992_tidy <- nvclark1992to2002 %>%  
+  filter(rowtype == "precinct", 
+         year == 1992) %>%
+  #v3 to v8 are independent parties in presidential race. Sum their votes into OTHER
+  mutate(OTHER = v3+v4+v5+v6+v7+v8) %>%
+  #Gather v1, v2 and OTHER into PARTY_CODE indicating the candidates' parties
+  gather(key = PARTY_CODE, value = VOTES, v1, v2, OTHER) %>%
+  #Rename v1 to REP and v2 to DEM
+  mutate(PARTY_CODE = ifelse(PARTY_CODE == "v1", "REP",
+                             ifelse(PARTY_CODE == "v2", "DEM",
+                                    "OTHER"))) %>%
+  #attach the corresponding state legislative district pags to each precinct
+  left_join(cheatsheet1992_1994CLARK, by=c("precname" = "precname", "precnum" = "precnum")) %>%
+  select(year, county, precname, precnum, SENATE_OR_HOUSE, DISTRICT_NUM, 
+         Turnout, PARTY_CODE, VOTES, privacy)
+
+#Isolate and Wrangle Data for 1994
+nvclark1994_tidy <- nvclark1992to2002 %>%  
+  filter(rowtype == "precinct",
+         year == 1994) %>%
+  #v2, v4 & v5 are independent parties in gubertorial race. Sum their votes into OTHER
+  mutate(OTHER = v2+v4+v5) %>%
+  #Gather v1, v3 and OTHER into PARTY_CODE indicating the candidates' parties
+  gather(key = PARTY_CODE, value = VOTES, v1, v3, OTHER) %>%
+  #Rename v1 to REP and v3 to DEM
+  mutate(PARTY_CODE = ifelse(PARTY_CODE == "v1", "REP",
+                             ifelse(PARTY_CODE == "v3", "DEM",
+                                    "OTHER"))) %>%
+  #attach the corresponding state legislative district pags to each precinct
+  left_join(cheatsheet1992_1994CLARK, by=c("precname" = "precname", "precnum" = "precnum")) %>%
+  select(year, county, precname, precnum, SENATE_OR_HOUSE, DISTRICT_NUM, 
+         Turnout, PARTY_CODE, VOTES, privacy)
+  
+#Isolate and Wrangle Data for 1996
+nvclark1996_tidy <- nvclark1992to2002 %>%  
+  filter(rowtype == "precinct",
+         year == 1996) %>%
+  #v1, v4 to v8 are independent parties in presidential race. Sum their votes into OTHER
+  mutate(OTHER = v1+v4+v5+v6+v7+v8) %>%
+  #Gather v1, v2 and OTHER into PARTY_CODE indicating the candidates' parties
+  gather(key = PARTY_CODE, value = VOTES, v2, v3, OTHER) %>%
+  #Rename v3 to REP and v2 to DEM
+  mutate(PARTY_CODE = ifelse(PARTY_CODE == "v3", "REP",
+                             ifelse(PARTY_CODE == "v2", "DEM",
+                                    "OTHER"))) %>%
+  #attach the corresponding state legislative district pags to each precinct
+  left_join(cheatsheet1996_2000CLARK, by=c("precnum" = "PRECINCT")) %>%
+  select(year, county, precname, precnum, SENATE_OR_HOUSE, DISTRICT_NUM, 
+         Turnout, PARTY_CODE, VOTES, privacy)
+
+#Isolate and Wrangle Data for 1998
+nvclark1998_tidy <- nvclark1992to2002 %>%  
+  filter(rowtype == "precinct",
+         year == 1998) %>%
+  #v2, v4 & v5 are independent parties in gubertorial race. Sum their votes into OTHER
+  mutate(OTHER = v2+v4+v5) %>%
+  #Gather v1, v3 and OTHER into PARTY_CODE indicating the candidates' parties
+  gather(key = PARTY_CODE, value = VOTES, v1, v3, OTHER) %>%
+  #Rename v1 to REP and v3 to DEM
+  mutate(PARTY_CODE = ifelse(PARTY_CODE == "v1", "REP",
+                             ifelse(PARTY_CODE == "v3", "DEM",
+                                    "OTHER"))) %>%
+  left_join(cheatsheet1996_2000CLARK, by=c("precnum" = "PRECINCT")) %>%
+  select(year, county, precname, precnum, SENATE_OR_HOUSE, DISTRICT_NUM, 
+         Turnout, PARTY_CODE, VOTES, privacy)
+
+#Isolate and Wrangle Data for 2000
+nvclark2000_tidy <- nvclark1992to2002 %>%  
+  filter(rowtype == "precinct",
+         year == 2000) %>%
+  #v1, v2 & v5:v8 are independent parties in presidential race. Sum their votes into OTHER
+  mutate(OTHER = v1+v2+v5+v6+v7+v8) %>%
+  #Gather v3, v4 and OTHER into PARTY_CODE indicating the candidates' parties
+  gather(key = PARTY_CODE, value = VOTES, v3, v4, OTHER) %>%
+  #Rename v1 to REP and v2 to DEM
+  mutate(PARTY_CODE = ifelse(PARTY_CODE == "v3", "REP",
+                             ifelse(PARTY_CODE == "v4", "DEM",
+                                    "OTHER"))) %>%
+  left_join(cheatsheet1996_2000CLARK, by=c("precnum" = "PRECINCT")) %>%
+  select(year, county, precname, precnum, SENATE_OR_HOUSE, DISTRICT_NUM, 
+         Turnout, PARTY_CODE, VOTES, privacy)
+
+#Isolate and Wrangle Data for 2002
+nvclark2002_tidy <- nvclark1992to2002 %>%  
+  filter(rowtype == "precinct",
+         year == 2002) %>%
+  #v1, v3, v4, v6 and v7 are independent parties. Sum their votes into OTHER
+  mutate(OTHER = v1+v3+v4+v6+v7) %>%
+  #Gather v5, v2 and OTHER into PARTY_CODE indicating the candidates' parties
+  gather(key = PARTY_CODE, value = VOTES, v2, v5, OTHER) %>%
+  #Rename v2 to REP and v5 to DEM
+  mutate(PARTY_CODE = ifelse(PARTY_CODE == "v1", "REP",
+                             ifelse(PARTY_CODE == "v3", "DEM",
+                                    "OTHER"))) %>%
+  left_join(cheatsheet2002CLARK, by=c("precnum" = "PRECINCT")) %>%
+  select(year, county, precname, precnum, SENATE_OR_HOUSE, DISTRICT_NUM, 
+         Turnout, PARTY_CODE, VOTES, privacy)
+
+#Rebind the tidied data for each election years together into 1 dataframe
+nvclark1992to2002_tidy <- rbind(nvclark1992_tidy, nvclark1994_tidy, nvclark1996_tidy,
+                                nvclark1998_tidy, nvclark2000_tidy, nvclark2002_tidy)
 ##############################################
 # 1992-2002 Data Carson City
 ##############################################
@@ -285,14 +423,14 @@ carsoncity1996to2002_tidy <- carsoncity1996to2002_tidy %>%
   mutate(county = "Carson_City")
 
   #mutate a county column for Clark County Data
-NVclarkcounty1992to2002_tidy <- NV_Clark_County_Precinct_Level_Results_1992_2002 %>%
+nvclark1992to2002_tidy <- nvclark1992to2002_tidy %>%
   mutate(county = "clark") %>%
   #mutate a DIST_NAME column: 
   mutate(DIST_NAME = "CLARK") %>%
   #Mutate a column capturing the type of contests/races
   mutate(officename = ifelse(grepl('1992|1996|2000', year), "president", "governor")) %>%
   #Select the relevants columns
-  select(-rowtype, -RV, -Percent)
+  select(-privacy)
 
   #Add up voter turnout in Washoe County Data
 washoe1994to2002_tidy <- washoe1994to2002_tidy %>%
@@ -303,7 +441,7 @@ washoe1994to2002_tidy <- washoe1994to2002_tidy %>%
   rename(DISTRICT_NUM = DIST_NUM)
 
 #Bind all 3 files together
-precinct_data_1992to2002 <- rbind(carsoncity1996to2002_tidy, washoe1994to2002_tidy, NVclarkcounty1992to2002_tidy)
+precinct_data_1992to2002 <- rbind(carsoncity1996to2002_tidy, washoe1994to2002_tidy, nvclark1992to2002_tidy)
   
 #Gather DEM, REP and OTHER into PARTY_CODE and VOTE  
 precinct_data_1992to2002 <- precinct_data_1992to2002 %>% 
