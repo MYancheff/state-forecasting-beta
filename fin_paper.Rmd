@@ -9,11 +9,12 @@ library(tidyverse)
 library(lubridate)
 library(rpart)
 library(ggthemes)
+library(Amelia)
+library(mice)
 
 source("load_carls.R")
 source("load_precinct_data.R")
 source("load_econ_data.R")
-
 
 ```
 
@@ -43,7 +44,8 @@ district_level_data = rbind(unnamed_data,named_data) %>%
   mutate(party_val = ifelse(wining_party == "DEM",1,
                             ifelse(wining_party == "REP",-1,0)),
          governor_perc_vote_dem = governor_vote_dem/governor_total_vote,
-         president_perc_vote_dem = president_vote_dem/president_total_vote) %>%
+         president_perc_vote_dem =
+           president_vote_dem/president_total_vote) %>%
   select(-(governor_total_vote:president_vote_dem))
 ```
 
@@ -92,19 +94,38 @@ joined_district_data = district_level_data %>%
 ```
 
 ```{r impute_missing}
-impute_mean = function(vector){
-  vector[is.na(vector)] <- mean(vector, na.rm = T)
-  vector
-}
-joined_district_data$governor_perc_vote_dem = impute_mean(joined_district_data$governor_perc_vote_dem)
-joined_district_data$president_perc_vote_dem = impute_mean(joined_district_data$president_perc_vote_dem)
+imputation_data = joined_district_data %>%
+  filter(ELECTION_YEAR>=1984)
+
+mice_imputed_data = complete( mice( imputation_data ))
+
+
+removed_amelia_cols = imputation_data %>%
+  select(DIST_ID,Assembly,wining_party,party_val,pres_elect_penalty)
+
+amelia_data = imputation_data %>%
+  select(-DIST_ID,-Assembly,-wining_party,-party_val,-pres_elect_penalty)
+
+to.remove <- c("hp","drat","wt","qsec")
+mtcars[,-which(names(mtcars) %in% to.remove)]
+
+amelia_fit <- amelia(amelia_data,
+                     m=2,
+                     ts="ELECTION_YEAR")
+amelia_imputed_data = cbind(amelia_fit$imputations[[1]],removed_amelia_cols)
+
+removed_bad_years = amelia_imputed_data %>%
+  mutate(governor_perc_vote_dem = 
+           ifelse(ELECTION_YEAR %% 4 == 2,governor_perc_vote_dem,0),
+         president_perc_vote_dem =
+           ifelse(ELECTION_YEAR %% 4 == 0,president_perc_vote_dem,0))
 ```
 
 ```{r}
-testyear = 2010
+testyear = 2008
 
-single_level_model_data = joined_district_data %>%
-  filter(ELECTION_YEAR >= 2004) # we don't have district numbers for 1968 and 1970! (this should be fixable)
+single_level_model_data = removed_bad_years %>%
+  filter(ELECTION_YEAR >= 1996) # we don't have district numbers for 1968 and 1970! (this should be fixable)
 
 all_train_data = single_level_model_data %>%
   filter(ELECTION_YEAR < testyear)
