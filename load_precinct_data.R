@@ -127,6 +127,11 @@ cheatsheet2012_2016 <- all_prec_data %>%
 
 full_cheatsheet = rbind(cheatsheet2004_2010,cheatsheet2012_2016)
 
+contest_names = c("Governor","President and Vice President of the United States")
+officenames = c("governor","president")
+
+officename_map = data.frame(contestname = contest_names,officename = officenames)
+
 prec_data_election = all_prec_data %>%
   #filter in only relevant races (president, governor, assembly and senate districts)
   filter(grepl('Governor|President|Congress|United States Senator', Contest),
@@ -137,7 +142,9 @@ prec_data_election = all_prec_data %>%
   left_join(full_cheatsheet, by=c("DistrictingSection" = "DistrictingSection","Precinct" = "Precinct","Jurisdiction" = "Jurisdiction")) %>%
   group_by(Year, Jurisdiction, Precinct, Contest) %>%
   mutate(Turnout =  sum(Votes)) %>%
-  ungroup()
+  ungroup() %>%
+  left_join(officename_map,by=c("Contest"="contestname")) %>%
+  select(-Contest)
 
 ##############################################
 # Road data
