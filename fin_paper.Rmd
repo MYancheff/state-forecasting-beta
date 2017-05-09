@@ -8,6 +8,7 @@ library(foreign)
 library(tidyverse)
 library(lubridate)
 library(rpart)
+library(ggthemes)
 
 source("load_carls.R")
 source("load_precinct_data.R")
@@ -155,14 +156,25 @@ plot_chart_use_data = year_summary %>%
   rbind(zero_intercept_years) %>%
   arrange(ELECTION_YEAR)
 
+argvar = data.frame(YEAR=c(min(plot_chart_use_data$ELECTION_YEAR),max(plot_chart_use_data$ELECTION_YEAR)),party_composition=c(0.5,0.5))
+
 plot_chart_use_data %>%
-  mutate(assembly_composition = assembly_composition*0.5,
-         dem_years = ifelse(assembly_composition > 0,assembly_composition,0),
-         rep_years = ifelse(assembly_composition < 0,assembly_composition,0)) %>%
+  mutate(assembly_composition = assembly_composition*0.5 + 0.5,
+         dem_years = assembly_composition,
+         rep_years = 1-assembly_composition) %>%
   gather(dem_years,rep_years,key=party_year,value=party_composition) %>%
   ggplot(aes(x=ELECTION_YEAR,y=party_composition,fill=party_year)) + 
-    geom_area() + 
-    facet_grid(~Assembly)
+    geom_area(position="stack") + 
+    facet_grid(~Assembly) + 
+    geom_line(data=argvar,mapping=aes(x=YEAR,y=party_composition,fill=NA),color="black") + 
+    theme_few() + 
+    xlab("Year") + 
+    ylab("Party control of assembly") + 
+    ggtitle("Nevada State Legislature Party Composition over Time") + 
+    scale_fill_manual(values=c("blue","red"),
+                      labels=c("Democratic","Republican"),
+                      guide = guide_legend(title = "Party"))
+    
 ```
 
 ```{r}
