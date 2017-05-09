@@ -86,11 +86,11 @@ get_pres_gov_party = function(name){
 prec_files = lapply(all_paths,load_file)
 with_years = mapply(function(df,year){mutate(df,Year=year)},prec_files,all_years,SIMPLIFY=FALSE)
 all_prec_data = rbindlist(with_years)  %>%
-  mutate(Votes = ifelse(is.na(Votes),0,Votes))
+  mutate(Votes = ifelse(is.na(Votes),0,Votes)) %>%
+  mutate(Year = as.integer(Year))
   
 #precint to district mapping
-cheatsheet2004_2010 <- all_prec_data %>%
-  mutate(Year = as.integer(Year)) %>%
+cheatsheet2004_2010 <- all_prec_data  %>%
          #DistrictingSection = ifelse(Year %in% c(2012,2014,2016),2012,2004)) %>%
   #group_by(DistrictingSection) %>%
   filter(grepl('Senate|Assembly', Contest),
@@ -113,7 +113,6 @@ cheatsheet2004_2010 <- all_prec_data %>%
     
 
 cheatsheet2012_2016 <- all_prec_data %>%
-  mutate(Year = as.integer(Year)) %>%
   filter(Year %in% c(2012, 2014),
          grepl('Senate|Assembly', Contest)) %>%
   select(Jurisdiction, Precinct, Contest) %>%
@@ -123,7 +122,7 @@ cheatsheet2012_2016 <- all_prec_data %>%
          DISTRICT_NUM = stri_sub(Contest, -2),
          DISTRICT_NUM = as.integer(DISTRICT_NUM)) %>%
   mutate(DistrictingSection = 3) %>%
-  select(-Contest) 
+  select(-Contest)
 
 full_cheatsheet = rbind(cheatsheet2004_2010,cheatsheet2012_2016)
 
@@ -470,3 +469,36 @@ precinct_data_1992to2002 <- precinct_data_1992to2002 %>%
 
 #Export CSV file of the Washoe County precinct data 1994-2002 with legislative district tags 
 write.csv(precinct_data_1992to2002, "Precinct Level Results 1992-2002 Washoe, Clark County & Carson City.csv")
+
+
+#####################################################################
+# Supplement carl's data for 2016
+####################################################################
+
+use_cheatsheet2012_2016 = cheatsheet2012_2016 %>%
+  mutate(SENATE_OR_HOUSE=ifelse(SENATE_OR_HOUSE==8,"HOUSE","SENATE")) 
+
+y2016_supp_data = all_prec_data %>%
+  filter(Year == 2016,
+         grepl('Senate|Assembly', Contest)) %>%
+  mutate(SENATE_OR_HOUSE = ifelse(grepl('Senate',Contest),"SENATE","HOUSE")) %>%
+  left_join(use_cheatsheet2012_2016,by=c("Precinct" = "Precinct","Jurisdiction" = "Jurisdiction","SENATE_OR_HOUSE"="SENATE_OR_HOUSE")) %>%
+  group_by(Contest,Selection) %>%
+  summarize(canidate_vote = sum(Votes),
+            DISTRICT_NUM = DISTRICT_NUM[1],
+            DIST_NAME = DIST_NAME[1],
+            SENATE_OR_HOUSE=SENATE_OR_HOUSE[1]) %>%
+  mutate(turnout = sum(canidate_vote)) %>%
+  ungroup()
+
+write.csv(y2016_supp_data, "2016_supplement.csv")
+
+
+
+  
+  
+  
+  
+  
+  
+  
