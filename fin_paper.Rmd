@@ -8,6 +8,9 @@ library(foreign)
 library(tidyverse)
 library(lubridate)
 library(rpart)
+library(ggthemes)
+library(Amelia)
+library(mice)
 
 source("load_carls.R")
 source("load_precinct_data.R")
@@ -16,8 +19,9 @@ source("load_econ_data.R")
 ```
 
 ```{r district_level_data}
-pres_summary = prec_data_2004_2014 %>% 
-  group_by(officename,Year,SENATE_OR_HOUSE,DIST_NAME,DIST_NUM,Selection) %>%
+pres_summary = prec_data_election %>% 
+  mutate(SENATE_OR_HOUSE=ifelse(SENATE_OR_HOUSE==8,"HOUSE","SENATE")) %>%
+  group_by(officename,Year,SENATE_OR_HOUSE,DIST_NAME,DISTRICT_NUM,Selection) %>%
   summarise(vote_count = sum(Votes),
             Party = get_pres_gov_party(Selection[1])) %>%
   summarise(vote_dem = sum(ifelse(Party=="DEM",vote_count,0)),
@@ -29,18 +33,19 @@ pres_summary = prec_data_2004_2014 %>%
 
 named_data = use_data %>%
   left_join(filter(pres_summary,!is.na(DIST_NAME) & DIST_NAME!=""),
-            by=c("ELECTION_YEAR"="Year","Assembly"="SENATE_OR_HOUSE","DISTRICT_NUM"="DIST_NUM","DISTRICT_NAME"="DIST_NAME"))
+            by=c("ELECTION_YEAR"="Year","Assembly"="SENATE_OR_HOUSE","DISTRICT_NUM"="DISTRICT_NUM","DISTRICT_NAME"="DIST_NAME"))
 
 unnamed_data = use_data %>%
   left_join(filter(pres_summary,is.na(DIST_NAME) | DIST_NAME==""),
-            by=c("ELECTION_YEAR"="Year","Assembly"="SENATE_OR_HOUSE","DISTRICT_NUM"="DIST_NUM")) %>%
+            by=c("ELECTION_YEAR"="Year","Assembly"="SENATE_OR_HOUSE","DISTRICT_NUM"="DISTRICT_NUM")) %>%
   select(-DIST_NAME)
 
 district_level_data = rbind(unnamed_data,named_data) %>%
   mutate(party_val = ifelse(wining_party == "DEM",1,
                             ifelse(wining_party == "REP",-1,0)),
          governor_perc_vote_dem = governor_vote_dem/governor_total_vote,
-         president_perc_vote_dem = president_vote_dem/president_total_vote) %>%
+         president_perc_vote_dem =
+           president_vote_dem/president_total_vote) %>%
   select(-(governor_total_vote:president_vote_dem))
 ```
 
@@ -67,17 +72,15 @@ state_level_data = economic_data %>%
          midterm_penalty = pres_party_num * is_midterm,
          pres_elect_penalty = pres_party_num * is_pres_election) %>%
   
-  select(YEAR:Unemployment_LOCAL,midterm_penalty,pres_elect_penalty)
+  select(YEAR:Unemployment_LOCAL,midterm_penalty,pres_elect_penalty) %>%
+  mutate(lag_MHI_Change_LOCAL = lag(MHI_Change_LOCAL))
 ```
 
 ```{r assembly_level_summary}
-data = filter(data,Assembly=="SENATE")
 year_summary = district_level_data %>%
   group_by(Assembly,ELECTION_YEAR) %>%
-  summarise(assembly_composition = sum(party_val))%>%
-  arrange(ELECTION_YEAR) %>%
-  #lagged by one year entry (i.e. 2 years)
-  mutate(lagged_assembly_composition = lag(assembly_composition)) %>%
+  summarise(assembly_composition = sum(party_val)/n()) %>%
+  mutate(lag_assembly_composition = lag(assembly_composition)) %>%
   ungroup()
 ```
 
@@ -89,40 +92,89 @@ joined_district_data = district_level_data %>%
   select(-DISTRICT_NUM,-DISTRICT_NAME)
 ```
 
-```{r impute_missing}
-impute_mean = function(vector){
-  vector[is.na(vector)] <- mean(vector, na.rm = T)
-  vector
-}
-joined_district_data$governor_perc_vote_dem = impute_mean(joined_district_data$governor_perc_vote_dem)
-joined_district_data$president_perc_vote_dem = impute_mean(joined_district_data$president_perc_vote_dem)
+```{r}
+lagged_district_data = joined_district_data %>%
+  arrange(ELECTION_YEAR) %>%
+  group_by(Assembly,DIST_ID) %>%
+  #lagged by one year entry (i.e. 2 years for house, 4 years for senate)
+  mutate(lag_governor_perc_vote_dem = lag(governor_perc_vote_dem),
+         lag_president_perc_vote_dem = lag(president_perc_vote_dem),
+         lag_assembly_vote_dem = lag(assembly_vote_dem),
+         lag_incumbent_factor = lag(incumbent_factor)) %>%
+  ungroup()
 ```
 
+```{r impute_missing}
+impute_data = function(all_data){
+  mice_imputed_data = complete( mice( all_data ,printFlag=FALSE,m=1))
+  
+  
+  # conducts amelia imputation
+  #removed_amelia_cols = all_data %>%
+  #  select(DIST_ID,Assembly,wining_party,party_val,pres_elect_penalty)
+  
+  #amelia_data = all_data %>%
+  #  select(-DIST_ID,-Assembly,-wining_party,-party_val,-pres_elect_penalty)
+  
+  #amelia_fit <- amelia(amelia_data,
+  #                     m=2,
+  #                     p2s=1,#2 is verbose, 1 is not as verbose, 0 is no output
+  #                     ts="ELECTION_YEAR")
+  #amelia_imputed_data = cbind(amelia_fit$imputations[[1]],removed_amelia_cols)
+  
+  #check if mice_imputed_data or amelia_imputed_data works better
+  
+  mice_imputed_data
+}
+zero_off_election_years = function(data){
+  data %>%
+  mutate(governor_perc_vote_dem = 
+           ifelse(ELECTION_YEAR %% 4 == 2,governor_perc_vote_dem,0),
+         president_perc_vote_dem =
+           ifelse(ELECTION_YEAR %% 4 == 0,president_perc_vote_dem,0),
+         lag_governor_perc_vote_dem = ifelse(ELECTION_YEAR %% 4 == 0,lag_governor_perc_vote_dem,0),
+         lag_president_perc_vote_dem = ifelse(ELECTION_YEAR %% 4 == 2,lag_president_perc_vote_dem,0))
+}
+```
+
+
 ```{r}
-testyear = 2010
+testyear = 2014
 model_single_level = function(train_data){
-  lm(assembly_composition - lagged_assembly_composition ~ 
+  lm(assembly_composition ~ 
+       #state level data
+       lag_assembly_composition + 
+       midterm_penalty + 
+       pres_elect_penalty + 
        MHI_Change_LOCAL +
+       lag_MHI_Change_LOCAL +
        GDPperCapita_CHANGE_US + 
+       
+       # district level variables
        incumbent_factor + 
        lag_incumbent_factor + 
        lag_governor_perc_vote_dem + 
        lag_president_perc_vote_dem + 
-       lag_assembly_vote_dem
+       lag_assembly_vote_dem*lag_incumbent_factor
        ,data=train_data)
 }
-train_data = house_data
 probit_model = function(train_data){
-  glm(assembly_composition ~
+  glm((party_val+1)/2 ~
+       #state level data
        lag_assembly_composition + 
        MHI_Change_LOCAL +
        lag_MHI_Change_LOCAL +
        GDPperCapita_CHANGE_US + 
+       midterm_penalty + 
+       pres_elect_penalty + 
+        
+       # district level variables
        incumbent_factor + 
        lag_incumbent_factor + 
        lag_governor_perc_vote_dem + 
        lag_president_perc_vote_dem + 
-       lag_assembly_vote_dem
+       lag_assembly_vote_dem + 
+       lag_assembly_vote_dem:lag_incumbent_factor
        ,data=train_data
        ,family = "binomial")
 }
@@ -140,10 +192,15 @@ get_model_accuracy = function(assembly_data,generate_model_fn,testyear){
   
   model1 = generate_model_fn(train_data)
   
-  guessed_outcome = predict(model1,test_data)
-  actual_outcome = test_data$assembly_composition
-  error = sqrt(sum((guessed_outcome-actual_outcome)^2)/nrow(test_data))
-  error
+  guessed_outcome = predict(model1,test_data,type = "response")
+  
+  discrete_outcome = rbinom(rep(1, length(guessed_outcome)),1, guessed_outcome)
+  actual_outcome = test_data$assembly_composition#(test_data$party_val+1)/2
+  
+  miscalc_rate = sum(ifelse(discrete_outcome != actual_outcome,1,0))
+  
+  ms_error = sqrt(sum((guessed_outcome-actual_outcome)^2)/nrow(test_data))
+  ms_error
 }
 testyear = 2014
 generate_model_fn = model_single_level
@@ -165,11 +222,53 @@ assembly_data = house_data
 accs = get_accuracies(house_data)
 ```
 
+Plot showing why we did Nevada.
+
 ```{r}
-senate_data %>%
-  filter(ELECTION_YEAR >= 2012) %>%
-  select(ALT_DISTRICT_NUM,DISTRICT_NAME) %>%
-  unique()
+zero_intercept_years = year_summary %>%
+  arrange(ELECTION_YEAR) %>%
+  group_by(Assembly) %>%
+  mutate(m = (assembly_composition-lag(assembly_composition))/(ELECTION_YEAR-lag(ELECTION_YEAR)),
+         b = assembly_composition - m * ELECTION_YEAR,
+         x_cross = -b/m) %>%
+  filter(x_cross > lag(ELECTION_YEAR) & x_cross < ELECTION_YEAR) %>%
+  ungroup() %>%
+  mutate(ELECTION_YEAR=x_cross,
+         assembly_composition=0) %>%
+  select(ELECTION_YEAR,assembly_composition,Assembly)
+
+plot_chart_use_data = year_summary %>%
+  select(-lag_assembly_composition) %>%
+  rbind(zero_intercept_years) %>%
+  arrange(ELECTION_YEAR)
+
+argvar = data.frame(YEAR=c(min(plot_chart_use_data$ELECTION_YEAR),max(plot_chart_use_data$ELECTION_YEAR)),party_composition=c(0.5,0.5))
+
+plot_chart_use_data %>%
+  mutate(assembly_composition = assembly_composition*0.5 + 0.5,
+         dem_years = assembly_composition,
+         rep_years = 1-assembly_composition) %>%
+  gather(dem_years,rep_years,key=party_year,value=party_composition) %>%
+  ggplot(aes(x=ELECTION_YEAR,y=party_composition,fill=party_year)) + 
+    geom_area(position="stack") + 
+    facet_grid(~Assembly) + 
+    geom_line(data=argvar,mapping=aes(x=YEAR,y=party_composition,fill=NA),color="black") + 
+    theme_few() + 
+    xlab("Year") + 
+    ylab("Party control of assembly") + 
+    ggtitle("Nevada State Legislature Party Composition over Time") + 
+    scale_fill_manual(values=c("blue","red"),
+                      labels=c("Democratic","Republican"),
+                      guide = guide_legend(title = "Party"))
+    
+```
+
+```{r}
+joined_district_data %>%
+  mutate(pres_year = ifelse(ELECTION_YEAR %% 4 == 2,1,0)) %>%
+  group_by(pres_year) %>%
+  
+  
 ```
 
 ```{r}
