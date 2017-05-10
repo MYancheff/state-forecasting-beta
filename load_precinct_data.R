@@ -666,7 +666,7 @@ y2016_supp_data = all_prec_data %>%
   mutate(turnout = sum(canidate_vote)) %>%
   ungroup() %>%
   mutate(party_code = ifelse(Selection %in% dem_list2016, "DEM",
-                             ifelse(Selection %>% rep_list2016, "REP",
+                             ifelse(Selection %in% rep_list2016, "REP",
                                     "OTHER"))) %>%
   mutate(INCUMBENCY_DUMMY = ifelse(Selection = incumbent_list, 1, 0))
 
