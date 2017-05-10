@@ -192,7 +192,11 @@ road_data = read_dta(filename) %>%
   mutate(SENATE_OR_HOUSE = ifelse(SENATE_OR_HOUSE == "senate_district_num", 9, 8),
          DIST_NAME = ifelse(SENATE_OR_HOUSE == 9, DIST_NAME, NA), 
          DISTRICT_NUM = ifelse(SENATE_OR_HOUSE == 8, DIST_NUM_ROAD, DISTRICT_NUM)) %>%
-  select(year, county, precinct, SENATE_OR_HOUSE, DIST_NAME, DISTRICT_NUM, officename, PARTY_CODE, VOTES)
+  select(year, county, precinct, SENATE_OR_HOUSE, DIST_NAME, DISTRICT_NUM, officename, PARTY_CODE, VOTES) %>%
+  #Mutate a Turnout Variable
+  group_by(year, county, precinct, officename) %>%
+  mutate(Turnout = sum(VOTES)) %>%
+  ungroup()
 
 ##############################################
 # 1992-2002 Data Clark County
@@ -426,13 +430,13 @@ washoe1994to2002_tidy <- washoe1994to2002 %>%
 
 #Tidy Data (get all the data files into the same formats (same number of collumns))
 carsoncity1996to2002_tidy <- carsoncity1996to2002_tidy %>% 
-  #spread PARTY_CODES to derive 3 separate collumns for REP, DEM, OTHER
-  spread(key = `PARTY_CODE`, value = `VOTES`, fill = 0) %>%
   #mutate a new column capturing turnout
-  mutate(Turnout = DEM + OTHER + REP) %>%
+  group_by(year, precname, officename) %>%
+  mutate(Turnout = sum(VOTES)) %>%
+  ungroup() %>%
   #mutate a nonexistent precnum column
   mutate(precnum = NA) %>%
-  #mutate a county column:
+  #mutate a county column
   mutate(county = "Carson_City")
 
   #mutate a county column for Clark County Data
@@ -451,20 +455,45 @@ washoe1994to2002_tidy <- washoe1994to2002_tidy %>%
   #Mutate a column capturing the type of contests/races
   mutate(officename = ifelse(grepl('1992|1996|2000', year), "president", "governor")) %>%
   #Reformat so that all the columns are in the same order
-  rename(DISTRICT_NUM = DIST_NUM)
+  rename(DISTRICT_NUM = DIST_NUM) %>%
+  #Gather DEM, REP and OTHER into 1 collumn for PARTY_CODE
+  gather(key = PARTY_CODE, value = VOTES, `DEM`, `REP`, `OTHER`)
 
 #Bind all 3 files together
 precinct_data_1992to2002 <- rbind(carsoncity1996to2002_tidy, washoe1994to2002_tidy, nvclark1992to2002_tidy)
   
-#Gather DEM, REP and OTHER into PARTY_CODE and VOTE  
-precinct_data_1992to2002 <- precinct_data_1992to2002 %>% 
-  gather(key = PARTY_CODE, value = VOTES, `DEM`, `REP`, `OTHER`) %>%
-  #paste together precnum and precname to gether a precinct's name
+#paste together precnum and precname to gether a precinct's name  
+precinct_data_1992to2002 <- precinct_data_1992to2002 %>%
   mutate(precinct = paste(precname, precnum)) %>%
   #Rearrange column in a format that would makes the most sense to a reader
   select(year, county, precinct, SENATE_OR_HOUSE, 
          DIST_NAME, DISTRICT_NUM, officename, Turnout, PARTY_CODE, VOTES)
   
+#####################################################################
+# Create a comprehensive dataset of all available precinct-level voting data, 1984-2016
+######################################################################
+#Reformat the prec_data_election df to match that of the others
+prec_data_election <- prec_data_election %>%
+  rename(county = Jurisdiction, 
+         precinct = Precinct,
+         year = Year,
+         VOTES = Votes) %>%
+  select(-DistrictingSection, -Selection)
+
+#Bind road_data (1984-1990), precinct_data_1992to2002 and prec_data_election (2004-2016)
+precinct_deliverable <- rbind(road_data, precinct_data_1992to2002, prec_data_election)
+
+#Rename all the precinct_deliverable variables so that they are all capitalized
+precinct_deliverable <- precinct_deliverable %>% 
+  rename(YEAR = year,
+         COUNTY = county,
+         PRECINCT = precinct,
+         OFFICENAME = officename,
+         TURNOUT = Turnout, 
+         STATE_LEGISLATIVE_CHAMBER = SENATE_OR_HOUSE) %>%
+  mutate(SENATE_OR_HOUSE=ifelse(STATE_LEGISLATIVE_CHAMBER==8,"HOUSE","SENATE"))
+  
+
 
 #Export CSV file of the Washoe County precinct data 1994-2002 with legislative district tags 
 write.csv(precinct_data_1992to2002, "Precinct Level Results 1992-2002 Washoe, Clark County & Carson City.csv")
@@ -648,3 +677,4 @@ write.csv(y2016_supp_data, "2016_supplement.csv")
   
   
   
+
