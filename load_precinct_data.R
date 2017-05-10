@@ -491,12 +491,32 @@ precinct_deliverable <- precinct_deliverable %>%
          OFFICENAME = officename,
          TURNOUT = Turnout, 
          STATE_LEGISLATIVE_CHAMBER = SENATE_OR_HOUSE) %>%
-  mutate(SENATE_OR_HOUSE=ifelse(STATE_LEGISLATIVE_CHAMBER==8,"HOUSE","SENATE"))
-  
-
+  mutate(STATE_LEGISLATIVE_CHAMBER=ifelse(STATE_LEGISLATIVE_CHAMBER==8,"HOUSE","SENATE"))
 
 #Export CSV file of the Washoe County precinct data 1994-2002 with legislative district tags 
 write.csv(precinct_deliverable, "Nevada General Election Precinct Level Voting Results 1984-2016.csv")
+
+  
+#####################################################################
+# Graphing
+####################################################################
+
+graph_data <- precinct_deliverable %>%
+  filter(grepl('Clark|clark', COUNTY)) %>%
+  filter(grepl('president|President', OFFICENAME)) %>%
+  filter(PARTY_CODE == "DEM") %>%
+  group_by(YEAR, COUNTY, STATE_LEGISLATIVE_CHAMBER, DIST_NAME, DISTRICT_NUM) %>%
+  summarize(percent_vote_DEM = sum(VOTES)/sum(TURNOUT)) %>%
+  mutate(DISTRICT = ifelse(STATE_LEGISLATIVE_CHAMBER == "HOUSE", DISTRICT_NUM, 
+                           paste(DIST_NAME, DISTRICT_NUM))) %>%
+  filter(STATE_LEGISLATIVE_CHAMBER == "HOUSE")
+
+
+g1 <- ggplot(graph_data, aes(x = YEAR, y = percent_vote_DEM)) +
+  geom_line(aes(color = DISTRICT)) + 
+  title("How Nevada Clark County's House Districts Voted in Presidental Elections") +
+  ylab("Percentage that voted for Democratic Candidate") + 
+  theme_bw()
 
 
 #####################################################################
@@ -605,7 +625,7 @@ dem_list2016 = c(
   "Ratti, Julia",
   "Reese, Devon Thomas",
   "Marks, Alexander"
-)
+) 
 
 incumbent_list = c(
   "Neal, Dina",
