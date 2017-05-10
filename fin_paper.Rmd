@@ -37,7 +37,7 @@ named_data = pres_summary %>%
 joined_named_data = use_data %>%
   left_join(named_data,
             by=c("ELECTION_YEAR"="YEAR","Assembly"="SENATE_OR_HOUSE","DISTRICT_NUM"="DISTRICT_NUM","DISTRICT_NAME"="DIST_NAME")) %>%
-  filter(SENATE_OR_HOUSE == "SENATE" & YEAR < 2012)
+  filter(Assembly == "SENATE" & ELECTION_YEAR < 2012)
 
 unnamed_data = pres_summary %>% 
   mutate(DISTRICT_NAME = NA)
@@ -46,7 +46,7 @@ joined_unnamed_data = use_data %>%
   left_join(filter(pres_summary,is.na(DIST_NAME) | DIST_NAME==""),
             by=c("ELECTION_YEAR"="YEAR","Assembly"="SENATE_OR_HOUSE","DISTRICT_NUM"="DISTRICT_NUM")) %>%
   select(-DIST_NAME) %>%
-  filter(!(SENATE_OR_HOUSE == "SENATE" & YEAR < 2012))
+  filter(!(Assembly == "SENATE" & ELECTION_YEAR < 2012))
 
 district_level_data = rbind(joined_named_data,joined_unnamed_data) %>%
   mutate(party_val = ifelse(wining_party == "DEM",1,
@@ -272,9 +272,17 @@ plot_chart_use_data %>%
 ```
 
 ```{r}
-joined_district_data %>%
-  mutate(pres_year = ifelse(ELECTION_YEAR %% 4 == 2,1,0)) %>%
-  group_by(pres_year) %>%
+lagged_district_data %>%
+  filter(ELECTION_YEAR %% 4 == 0) %>%
+  filter(abs(assembly_vote_dem) != 1,
+         !is.na(president_perc_vote_dem)) %>%
+  ggplot(aes(y=president_perc_vote_dem,x=assembly_vote_dem/2+0.5))+
+  geom_smooth() + 
+  geom_point() + 
+  ggtitle("Percent Republican Vote for President and State Legislator at the District Level") + 
+  ylab("Percent Vote for Republican State Legislator") + 
+  xlab("Percent Vote for Republican President") + 
+  facet_wrap(~ELECTION_YEAR)
   
   
 ```

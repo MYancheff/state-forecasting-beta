@@ -85,4 +85,4 @@ use_data = all_years_data %>%
             assembly_vote_dem = sum(ifelse(party_code=="DEM",CANIDATE_VOTE_TOTAL,
                                            ifelse(party_code=="REP",-CANIDATE_VOTE_TOTAL,0)))/sum(CANIDATE_VOTE_TOTAL)) %>%
   ungroup()
-
+         

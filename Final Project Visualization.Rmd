@@ -75,14 +75,15 @@ p1 = ggplot(with_economic,aes(x=ELECTION_YEAR,y=twoYearMHI_Change_LOCAL)) +
   geom_line(color="red")+
   theme_bw() + 
   ggtitle("Median Household Income vs. Democratic House Composition") + 
-  ylab("% Change in MHI over Election Cycle") + 
-  xlab("Year")
+  ylab("Percent Change in MHI over Election Cycle") + 
+  xlab("Year") + 
+    scale_colour_manual(name = 'the colour', 
+         values =c('black'='black','red'='red'), labels = c('c2','c1'))
 
 p2 = ggplot(with_economic,aes(x=ELECTION_YEAR,y=perc_seats_dem)) + 
   geom_line(color="blue") + 
   theme_bw() %+replace% 
-  theme(panel.background = element_rect(fill = NA)) + 
-  ylab("hithere")
+  theme(panel.background = element_rect(fill = NA))
 
 # extract gtable
 g1 <- ggplot_gtable(ggplot_build(p1))
