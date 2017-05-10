@@ -66,7 +66,7 @@ use_data = general_election_data %>%
                                             1,
                                             ifelse(get_part(party_code,INCUMBENCY_DUMMY==1)=="REP",
                                                    -1,0))),
-            assembly_vote_composition = sum(ifelse(party_code=="DEM",CANIDATE_VOTE_TOTAL,
+            assembly_vote_dem = sum(ifelse(party_code=="DEM",CANIDATE_VOTE_TOTAL,
                                       ifelse(party_code=="REP",-CANIDATE_VOTE_TOTAL,0)))/sum(CANIDATE_VOTE_TOTAL)) %>%
   ungroup()
   

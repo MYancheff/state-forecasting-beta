@@ -72,16 +72,15 @@ state_level_data = economic_data %>%
          midterm_penalty = pres_party_num * is_midterm,
          pres_elect_penalty = pres_party_num * is_pres_election) %>%
   
-  select(YEAR:Unemployment_LOCAL,midterm_penalty,pres_elect_penalty)
+  select(YEAR:Unemployment_LOCAL,midterm_penalty,pres_elect_penalty) %>%
+  mutate(lag_MHI_Change_LOCAL = lag(MHI_Change_LOCAL))
 ```
 
 ```{r assembly_level_summary}
 year_summary = district_level_data %>%
   group_by(Assembly,ELECTION_YEAR) %>%
-  summarise(assembly_composition = sum(party_val)/n())%>%
-  arrange(ELECTION_YEAR) %>%
-  #lagged by one year entry (i.e. 2 years)
-  mutate(lagged_assembly_composition = lag(assembly_composition)) %>%
+  summarise(assembly_composition = sum(party_val)/n()) %>%
+  mutate(lag_assembly_composition = lag(assembly_composition)) %>%
   ungroup()
 ```
 
@@ -93,68 +92,102 @@ joined_district_data = district_level_data %>%
   select(-DISTRICT_NUM,-DISTRICT_NAME)
 ```
 
+```{r}
+lagged_district_data = joined_district_data %>%
+  arrange(ELECTION_YEAR) %>%
+  group_by(Assembly,DIST_ID) %>%
+  #lagged by one year entry (i.e. 2 years for house, 4 years for senate)
+  mutate(lag_governor_perc_vote_dem = lag(governor_perc_vote_dem),
+         lag_president_perc_vote_dem = lag(president_perc_vote_dem),
+         lag_assembly_vote_dem = lag(assembly_vote_dem),
+         lag_incumbent_factor = lag(incumbent_factor)) %>%
+  ungroup()
+```
+
 ```{r impute_missing}
-imputation_data = joined_district_data %>%
-  filter(ELECTION_YEAR>=1984)
-
-mice_imputed_data = complete( mice( imputation_data ))
-
-
-removed_amelia_cols = imputation_data %>%
-  select(DIST_ID,Assembly,wining_party,party_val,pres_elect_penalty)
-
-amelia_data = imputation_data %>%
-  select(-DIST_ID,-Assembly,-wining_party,-party_val,-pres_elect_penalty)
-
-to.remove <- c("hp","drat","wt","qsec")
-mtcars[,-which(names(mtcars) %in% to.remove)]
-
-amelia_fit <- amelia(amelia_data,
-                     m=2,
-                     ts="ELECTION_YEAR")
-amelia_imputed_data = cbind(amelia_fit$imputations[[1]],removed_amelia_cols)
-
-removed_bad_years = amelia_imputed_data %>%
+impute_data = function(all_data){
+  mice_imputed_data = complete( mice( all_data ,printFlag=FALSE,m=1))
+  
+  
+  # conducts amelia imputation
+  #removed_amelia_cols = all_data %>%
+  #  select(DIST_ID,Assembly,wining_party,party_val,pres_elect_penalty)
+  
+  #amelia_data = all_data %>%
+  #  select(-DIST_ID,-Assembly,-wining_party,-party_val,-pres_elect_penalty)
+  
+  #amelia_fit <- amelia(amelia_data,
+  #                     m=2,
+  #                     p2s=1,#2 is verbose, 1 is not as verbose, 0 is no output
+  #                     ts="ELECTION_YEAR")
+  #amelia_imputed_data = cbind(amelia_fit$imputations[[1]],removed_amelia_cols)
+  
+  #check if mice_imputed_data or amelia_imputed_data works better
+  
+  mice_imputed_data
+}
+zero_off_election_years = function(data){
+  data %>%
   mutate(governor_perc_vote_dem = 
            ifelse(ELECTION_YEAR %% 4 == 2,governor_perc_vote_dem,0),
          president_perc_vote_dem =
-           ifelse(ELECTION_YEAR %% 4 == 0,president_perc_vote_dem,0))
+           ifelse(ELECTION_YEAR %% 4 == 0,president_perc_vote_dem,0),
+         lag_governor_perc_vote_dem = ifelse(ELECTION_YEAR %% 4 == 0,lag_governor_perc_vote_dem,0),
+         lag_president_perc_vote_dem = ifelse(ELECTION_YEAR %% 4 == 2,lag_president_perc_vote_dem,0))
+}
 ```
 
 ```{r}
-testyear = 2008
-
-single_level_model_data = removed_bad_years %>%
-  filter(ELECTION_YEAR >= 1996) # we don't have district numbers for 1968 and 1970! (this should be fixable)
-
-all_train_data = single_level_model_data %>%
-  filter(ELECTION_YEAR < testyear)
-
-all_test_data =  single_level_model_data %>%
-  filter(ELECTION_YEAR == testyear)
-
-house_train_data = filter(all_train_data,Assembly=="HOUSE")
-senate_train_data = filter(all_train_data,Assembly=="SENATE")
-
-house_test_data = filter(all_test_data,Assembly=="HOUSE")
-senate_test_data = filter(all_test_data,Assembly=="SENATE")
-
-train_data = senate_train_data
 model_single_level = function(train_data){
-  lm(assembly_composition - lagged_assembly_composition ~ 
+  lm(assembly_composition ~
+       lag_assembly_composition + 
        MHI_Change_LOCAL +
+       lag_MHI_Change_LOCAL +
        GDPperCapita_CHANGE_US + 
-       incumbent_factor+
-       governor_perc_vote_dem + 
-       president_perc_vote_dem
+       incumbent_factor +
+       lag_incumbent_factor +
+       lag_governor_perc_vote_dem + 
+       lag_president_perc_vote_dem + 
+       lag_assembly_vote_dem
        ,data=train_data)
 }
-model1 = model_single_level(senate_train_data)
-AIC(model1)
-guessed_outcome = predict(model1,senate_test_data)
-actual_outcome = senate_test_data$assembly_composition - senate_test_data$lagged_assembly_composition
-error = sqrt(sum((guessed_outcome-actual_outcome)^2)/nrow(senate_test_data))
-error
+get_model_accuracy = function(assembly_data,generate_model_fn,testyear){
+  train_data = assembly_data %>%
+    filter(ELECTION_YEAR < testyear)
+  
+  train_data = impute_data(train_data) %>%
+    # needs to happen after imputation or else the imputation is terreble
+    zero_off_election_years()
+  
+  test_data = assembly_data %>%
+    filter(ELECTION_YEAR == testyear) %>%
+    zero_off_election_years()
+  
+  model1 = generate_model_fn(train_data)
+  
+  guessed_outcome = predict(model1,test_data)
+  actual_outcome = test_data$assembly_composition
+  error = sqrt(sum((guessed_outcome-actual_outcome)^2)/nrow(test_data))
+  error
+}
+testyear = 2014
+generate_model_fn = model_single_level
+get_accuracies = function(assembly_data){
+  years = assembly_data %>%
+    select(ELECTION_YEAR) %>%
+    distinct()
+  estimate_years = years$ELECTION_YEAR[years$ELECTION_YEAR > 2006]
+  accuracies = sapply(estimate_years,function(test_year){
+    get_model_accuracy(assembly_data,model_single_level,test_year)
+  })
+  accuracies
+}
+start_year = 1980
+house_data = lagged_district_data %>%
+  filter(Assembly=="HOUSE",
+         ELECTION_YEAR>=start_year)
+assembly_data = house_data
+accs = get_accuracies(house_data)
 ```
 
 Plot showing why we did Nevada.
