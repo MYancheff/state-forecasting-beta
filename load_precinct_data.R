@@ -82,24 +82,21 @@ get_pres_gov_party = function(name){
          ifelse(name %in% dem_list, "DEM","OTHER"))
 }
 
-# put all precinct level csv files for Nevada 2002-2016 into 1 dataframe 
+# put all precinct level csv files for Nevada 2004-2016 into 1 dataframe 
 prec_files = lapply(all_paths,load_file)
 with_years = mapply(function(df,year){mutate(df,Year=year)},prec_files,all_years,SIMPLIFY=FALSE)
-prec_data = rbindlist(with_years) %>%
+all_prec_data = rbindlist(with_years)  %>%
   mutate(Votes = ifelse(is.na(Votes),0,Votes)) %>%
-  #filter in only relevant races (president, governor, assembly and senate districts)
-  filter(grepl('Governor|President|Congress', Contest),
-         !grepl('Lieutenant', Contest)) %>% 
-  mutate(PARTY_CODE = ifelse(Selection %in% rep_list, "REP",
-                             ifelse(Selection %in% dem_list, "DEM", 
-                                    "OTHER")))
+  mutate(Year = as.integer(Year))
   
-  
-cheatsheet2004_2010 <- prec_data %>%
-  mutate(Year = as.integer(Year)) %>%
-  filter(Year == c(2004, 2006),
-         grepl('Senate|Assembly', Contest)) %>%
-  select(Jurisdiction, Precinct, Contest) %>%
+#precint to district mapping
+cheatsheet2004_2010 <- all_prec_data  %>%
+         #DistrictingSection = ifelse(Year %in% c(2012,2014,2016),2012,2004)) %>%
+  #group_by(DistrictingSection) %>%
+  filter(grepl('Senate|Assembly', Contest),
+         Year %in% c(2004, 2006,2008,2010)) %>%
+  mutate(DistrictingSection = ifelse(Year %in% c(2004, 2006),1,2)) %>%
+  select(DistrictingSection,Jurisdiction, Precinct, Contest) %>%
   distinct() %>%
   mutate(SENATE_OR_HOUSE = ifelse(grepl('Assembly', Contest), 8, 9)) %>%
   mutate(DIST_NAME = ifelse(grepl('Washoe', Contest), "WASHOE",
@@ -112,11 +109,10 @@ cheatsheet2004_2010 <- prec_data %>%
   #If DISTRICT_NUM = ct, then there is one only 1 district associated to DIST_NAME
   mutate(DISTRICT_NUM = ifelse(DISTRICT_NUM == "ct", 1, DISTRICT_NUM),
          DISTRICT_NUM = as.integer(DISTRICT_NUM)) %>%
-  select(-Contest)
-
-cheatsheet2012_2016 <- prec_data %>%
-  mutate(Year = as.integer(Year)) %>%
-  filter(Year == c(2012, 2014),
+  select(-Contest) 
+    
+cheatsheet2012_2016 <- all_prec_data %>%
+  filter(Year %in% c(2012, 2014),
          grepl('Senate|Assembly', Contest)) %>%
   select(Jurisdiction, Precinct, Contest) %>%
   distinct() %>%
@@ -124,6 +120,28 @@ cheatsheet2012_2016 <- prec_data %>%
   mutate(DIST_NAME = NA, 
          DISTRICT_NUM = stri_sub(Contest, -2),
          DISTRICT_NUM = as.integer(DISTRICT_NUM)) %>%
+  mutate(DistrictingSection = 3) %>%
+  select(-Contest)
+
+full_cheatsheet = rbind(cheatsheet2004_2010,cheatsheet2012_2016)
+
+contest_names = c("Governor","President and Vice President of the United States")
+officenames = c("governor","president")
+
+officename_map = data.frame(contestname = contest_names,officename = officenames)
+
+prec_data_election = all_prec_data %>%
+  #filter in only relevant races (president, governor, assembly and senate districts)
+  filter(grepl('Governor|President|Congress|United States Senator', Contest),
+        !grepl('Lieutenant', Contest)) %>%
+  mutate(PARTY_CODE = get_pres_gov_party(Selection)) %>%
+  mutate(DistrictingSection = ifelse(Year %in% c(2004, 2006),1,
+                                     ifelse(Year %in% c(2008, 2010),2, 3))) %>%
+  left_join(full_cheatsheet, by=c("DistrictingSection" = "DistrictingSection","Precinct" = "Precinct","Jurisdiction" = "Jurisdiction")) %>%
+  group_by(Year, Jurisdiction, Precinct, Contest) %>%
+  mutate(Turnout =  sum(Votes)) %>%
+  ungroup() %>%
+  left_join(officename_map,by=c("Contest"="contestname")) %>%
   select(-Contest)
 
 ##############################################
@@ -451,105 +469,35 @@ precinct_data_1992to2002 <- precinct_data_1992to2002 %>%
 #Export CSV file of the Washoe County precinct data 1994-2002 with legislative district tags 
 write.csv(precinct_data_1992to2002, "Precinct Level Results 1992-2002 Washoe, Clark County & Carson City.csv")
 
-##############################################
-# Random codes
-##############################################
-#Other Methods of Coding Precinct Data 2004-2016
-house_name = "State Assembly"
-senate_name = "State Senate"
 
-is_assembly = function(group_name,contest){
-  substr(contest,1,nchar(group_name))==group_name
-}
+#####################################################################
+# Supplement carl's data for 2016
+####################################################################
 
-district_num = function(group_name,assembly_contest){
-  num_str = substr(assembly_contest,nchar(assembly_contest)-1,100000000)
-  trimed_str = trimws(num_str)
-  as.integer(trimed_str)
-}
+use_cheatsheet2012_2016 = cheatsheet2012_2016 %>%
+  mutate(SENATE_OR_HOUSE=ifelse(SENATE_OR_HOUSE==8,"HOUSE","SENATE")) 
 
-leg_counties = c(
-  "Clark",
-  "Central",
-  "Washoe",
-  "Rural",
-  "Capital"
-)
-match_counties = function(let3) leg_counties[which(substring(leg_counties,1,3)==let3)[[1]]]
+y2016_supp_data = all_prec_data %>%
+  filter(Year == 2016,
+         grepl('Senate|Assembly', Contest)) %>%
+  mutate(SENATE_OR_HOUSE = ifelse(grepl('Senate',Contest),"SENATE","HOUSE")) %>%
+  left_join(use_cheatsheet2012_2016,by=c("Precinct" = "Precinct","Jurisdiction" = "Jurisdiction","SENATE_OR_HOUSE"="SENATE_OR_HOUSE")) %>%
+  group_by(Contest,Selection) %>%
+  summarize(canidate_vote = sum(Votes),
+            DISTRICT_NUM = DISTRICT_NUM[1],
+            DIST_NAME = DIST_NAME[1],
+            SENATE_OR_HOUSE=SENATE_OR_HOUSE[1]) %>%
+  mutate(turnout = sum(canidate_vote)) %>%
+  ungroup()
 
-house_prec_data = prec_data %>%
-  filter(is_assembly(house_name,Contest)) %>%
-  mutate(DIST_NAME=NA,
-         DIST_NUM = district_num(house_name,Contest),
-         SENATE_OR_HOUSE="HOUSE")
-
-all_senate_data = prec_data %>%
-  filter(is_assembly(senate_name,Contest)) %>%
-  mutate(SENATE_OR_HOUSE="SENATE")
-
-senate_data_2004_2010 = all_senate_data %>%
-  filter(Year < 2012) %>%
-  mutate(DIST_NAME = {
-    name_3_letters = substring(Contest,nchar(senate_name)+3,nchar(senate_name)+5)
-    dist_name = toupper(Vectorize(match_counties)(name_3_letters))
-    dist_name
-  },
-  DIST_NUM = {
-    num_na = district_num(senate_name,Contest)
-    # if district_num returns an NA, then it is the first district in the county
-    dist_num = ifelse(is.na(num_na),1,num_na)
-    dist_num
-  })
-
-senate_data_2012 = all_senate_data %>%
-  filter(Year >= 2012) %>%
-  mutate(DIST_NUM = district_num(senate_name,Contest),
-         DIST_NAME=NA)
+write.csv(y2016_supp_data, "2016_supplement.csv")
 
 
-district_data = rbind(house_prec_data,senate_data_2004_2010,senate_data_2012)
 
-district_map = district_data %>%
-  group_by(SENATE_OR_HOUSE,UniquePrecinct) %>%
-  summarize(DIST_NUM=DIST_NUM[1],
-            DIST_NAME=DIST_NAME[[1]]) %>%
-  mutate(DIST_NAME = ifelse(DIST_NAME == "",NA,DIST_NAME))
-
-rep_list = c(
-  "GEORGE W. BUSH",
-  "McCain, John",
-  "Romney, Mitt",
-  "TRUMP, DONALD J.",
   
-  #govenor names
-  "GIBBONS, JIM",
-  "Sandoval, Brian"
-)
-dem_list = c(
-  "JOHN F. KERRY",
-  "Obama, Barack",
-  "CLINTON, HILLARY",
   
-  #govenor names
-  "TITUS, DINA",
-  "Reid, Rory"
-)
-get_pres_gov_party = function(name){
-  ifelse(name %in% rep_list,"REP",
-         ifelse(name %in% dem_list, "DEM","OTHER"))
-}
-
-pres_contest_name = "President and Vice President of the United States"
-gov_contest_name = "Governor"
-
-prec_data_2004_2014 = prec_data %>%
-  mutate(officename=ifelse(Contest == pres_contest_name,
-                           "president",
-                           ifelse(Contest == gov_contest_name,
-                                  "governor",NA))) %>%
-  filter(!is.na(officename))  %>%
-  left_join(district_map,by="UniquePrecinct") %>%
-  rename(county=Jurisdiction,
-         precname=Precinct) %>%
-  mutate(Party=get_pres_gov_party(Selection)) %>%
-  select(-UniquePrecinct,-Contest)
+  
+  
+  
+  
+  
