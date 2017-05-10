@@ -12,35 +12,43 @@ library(ggthemes)
 library(Amelia)
 library(mice)
 
+precinct_data_all = read_csv("Nevada General Election Precinct Level Voting Results 1984-2016.csv")
 source("load_carls.R")
 source("load_precinct_data.R")
 source("load_econ_data.R")
-
 ```
 
 ```{r district_level_data}
-pres_summary = prec_data_election %>% 
-  mutate(SENATE_OR_HOUSE=ifelse(SENATE_OR_HOUSE==8,"HOUSE","SENATE")) %>%
-  group_by(officename,Year,SENATE_OR_HOUSE,DIST_NAME,DISTRICT_NUM,Selection) %>%
-  summarise(vote_count = sum(Votes),
-            Party = get_pres_gov_party(Selection[1])) %>%
-  summarise(vote_dem = sum(ifelse(Party=="DEM",vote_count,0)),
+pres_summary = precinct_data_all %>% 
+  filter(OFFICENAME %in% c("president","governor")) %>%
+  group_by(OFFICENAME,YEAR,SENATE_OR_HOUSE,DIST_NAME,DISTRICT_NUM,PARTY_CODE) %>%
+  summarise(vote_count = sum(VOTES),
+            Party = get_pres_gov_party(PARTY_CODE[1])) %>%
+  summarise(vote_dem = sum(ifelse(PARTY_CODE=="DEM",vote_count,0)),
             total_vote = sum(vote_count)) %>%
   ungroup() %>%
   gather(key=value_type,value=vote_value,vote_dem:total_vote)%>%
-  unite(RaceValue,officename,value_type) %>%
+  unite(RaceValue,OFFICENAME,value_type) %>%
   spread(RaceValue,vote_value)
 
-named_data = use_data %>%
-  left_join(filter(pres_summary,!is.na(DIST_NAME) & DIST_NAME!=""),
-            by=c("ELECTION_YEAR"="Year","Assembly"="SENATE_OR_HOUSE","DISTRICT_NUM"="DISTRICT_NUM","DISTRICT_NAME"="DIST_NAME"))
+named_data = pres_summary %>% 
+  mutate(DISTRICT_NUM = ifelse(is.na(DISTRICT_NUM),1,DISTRICT_NUM))
 
-unnamed_data = use_data %>%
+joined_named_data = use_data %>%
+  left_join(named_data,
+            by=c("ELECTION_YEAR"="YEAR","Assembly"="SENATE_OR_HOUSE","DISTRICT_NUM"="DISTRICT_NUM","DISTRICT_NAME"="DIST_NAME")) %>%
+  filter(SENATE_OR_HOUSE == "SENATE" & YEAR < 2012)
+
+unnamed_data = pres_summary %>% 
+  mutate(DISTRICT_NAME = NA)
+
+joined_unnamed_data = use_data %>%
   left_join(filter(pres_summary,is.na(DIST_NAME) | DIST_NAME==""),
-            by=c("ELECTION_YEAR"="Year","Assembly"="SENATE_OR_HOUSE","DISTRICT_NUM"="DISTRICT_NUM")) %>%
-  select(-DIST_NAME)
+            by=c("ELECTION_YEAR"="YEAR","Assembly"="SENATE_OR_HOUSE","DISTRICT_NUM"="DISTRICT_NUM")) %>%
+  select(-DIST_NAME) %>%
+  filter(!(SENATE_OR_HOUSE == "SENATE" & YEAR < 2012))
 
-district_level_data = rbind(unnamed_data,named_data) %>%
+district_level_data = rbind(joined_named_data,joined_unnamed_data) %>%
   mutate(party_val = ifelse(wining_party == "DEM",1,
                             ifelse(wining_party == "REP",-1,0)),
          governor_perc_vote_dem = governor_vote_dem/governor_total_vote,
@@ -94,11 +102,10 @@ joined_district_data = district_level_data %>%
 
 ```{r}
 lagged_district_data = joined_district_data %>%
-  arrange(ELECTION_YEAR) %>%
   group_by(Assembly,DIST_ID) %>%
   #lagged by one year entry (i.e. 2 years for house, 4 years for senate)
-  mutate(lag_governor_perc_vote_dem = lag(governor_perc_vote_dem),
-         lag_president_perc_vote_dem = lag(president_perc_vote_dem),
+  mutate(lag_governor_perc_vote_dem = lag(governor_perc_vote_dem,order_by=ELECTION_YEAR),
+         lag_president_perc_vote_dem = lag(president_perc_vote_dem,order_by=ELECTION_YEAR),
          lag_assembly_vote_dem = lag(assembly_vote_dem),
          lag_incumbent_factor = lag(incumbent_factor)) %>%
   ungroup()
@@ -139,7 +146,6 @@ zero_off_election_years = function(data){
 
 
 ```{r}
-testyear = 2014
 model_single_level = function(train_data){
   lm(assembly_composition ~ 
        #state level data
@@ -176,7 +182,7 @@ probit_model = function(train_data){
        lag_assembly_vote_dem + 
        lag_assembly_vote_dem:lag_incumbent_factor
        ,data=train_data
-       ,family = "binomial")
+       ,family="binomial")
 }
 get_model_accuracy = function(assembly_data,generate_model_fn,testyear){
   train_data = assembly_data %>%
@@ -194,8 +200,10 @@ get_model_accuracy = function(assembly_data,generate_model_fn,testyear){
   
   guessed_outcome = predict(model1,test_data,type = "response")
   
-  discrete_outcome = rbinom(rep(1, length(guessed_outcome)),1, guessed_outcome)
-  actual_outcome = test_data$assembly_composition#(test_data$party_val+1)/2
+  discrete_outcome = ifelse(guessed_outcome < 0.5, 0, 1)
+  #discrete_outcome = rbinom(rep(1,length(guessed_outcome)),1,guessed_outcome)
+  actual_outcome = test_data$assembly_composition
+  #actual_outcome = (test_data$party_val+1)/2
   
   miscalc_rate = sum(ifelse(discrete_outcome != actual_outcome,1,0))
   
@@ -208,7 +216,7 @@ get_accuracies = function(assembly_data){
   years = assembly_data %>%
     select(ELECTION_YEAR) %>%
     distinct()
-  estimate_years = years$ELECTION_YEAR[years$ELECTION_YEAR > 2006]
+  estimate_years = years$ELECTION_YEAR[years$ELECTION_YEAR > 2004]
   accuracies = sapply(estimate_years,function(test_year){
     get_model_accuracy(assembly_data,model_single_level,test_year)
   })
