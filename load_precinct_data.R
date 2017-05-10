@@ -496,7 +496,7 @@ precinct_deliverable <- precinct_deliverable %>%
 
 
 #Export CSV file of the Washoe County precinct data 1994-2002 with legislative district tags 
-write.csv(precinct_data_1992to2002, "Precinct Level Results 1992-2002 Washoe, Clark County & Carson City.csv")
+write.csv(precinct_deliverable, "Nevada General Election Precinct Level Voting Results 1984-2016.csv")
 
 
 #####################################################################
