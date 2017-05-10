@@ -57,15 +57,16 @@ use_data = general_election_data %>%
          DISTRICT_NUM,
          DISTRICT_NAME) %>%
   mutate(Assembly=ifelse(IN_HOUSE(SENATE_OR_HOUSE),"HOUSE",
-                        ifelse(IN_SENATE(SENATE_OR_HOUSE),"SENATE",NA))) %>%
+                         ifelse(IN_SENATE(SENATE_OR_HOUSE),"SENATE",NA))) %>%
   group_by(ELECTION_YEAR,Assembly,DISTRICT_NUM,DISTRICT_NAME) %>%
   summarise(wining_party = get_part(party_code,ELECTION_WINNER==1),#MULTI MEMBER DISTRICTS!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             incumbent_factor = ifelse(all(INCUMBENCY_DUMMY==0),
                                       0,
                                       ifelse(get_part(party_code,INCUMBENCY_DUMMY==1)=="DEM",
-                                            1,
-                                            ifelse(get_part(party_code,INCUMBENCY_DUMMY==1)=="REP",
-                                                   -1,0)))) %>%
+                                             1,
+                                             ifelse(get_part(party_code,INCUMBENCY_DUMMY==1)=="REP",
+                                                    -1,0))),
+            assembly_vote_dem = sum(ifelse(party_code=="DEM",CANIDATE_VOTE_TOTAL,
+                                           ifelse(party_code=="REP",-CANIDATE_VOTE_TOTAL,0)))/sum(CANIDATE_VOTE_TOTAL)) %>%
   ungroup()
-  
 
