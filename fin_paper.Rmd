@@ -153,15 +153,15 @@ model_single_level = function(train_data){
 }
 get_model_accuracy = function(assembly_data,generate_model_fn,testyear){
   train_data = assembly_data %>%
-    filter(ELECTION_YEAR < testyear)
-  
-  train_data = impute_data(train_data) %>%
+    filter(ELECTION_YEAR < testyear) %>%
+    impute_data() %>%
     # needs to happen after imputation or else the imputation is terreble
     zero_off_election_years()
   
   test_data = assembly_data %>%
+    impute_data() %>%
     filter(ELECTION_YEAR == testyear) %>%
-    zero_off_election_years()
+    zero_off_election_years() 
   
   model1 = generate_model_fn(train_data)
   
