@@ -474,6 +474,153 @@ write.csv(precinct_data_1992to2002, "Precinct Level Results 1992-2002 Washoe, Cl
 # Supplement carl's data for 2016
 ####################################################################
 
+rep_list2016 = c(
+  "Brean, Howard",
+  "Hambrick, John",
+  "McArthur, Richard",
+  "Ham, Artemus \"Art\"",
+  "Maffatt, Carlo",
+  "Fawzy, Jennifer",
+  "Ross, Norm",
+  "Gardner, David",
+  "Shelton, Shelly M.",
+  "Riggins, Mark",
+  "Anderson, Paul",
+  "Howard, Melody",
+  "Vaughan, Stan",
+  "Newsome, Ronald",
+  "DeCorte, Christine",
+  "Edwards, Chris",
+  "Linton, Carol",
+  "Armstrong, Derek",
+  "Pickard, Keith",
+  "Riger Sr., Jim",
+  "Woodbury, Melissa",
+  "Tolles, Jill",
+  "Weber, Bonnie",
+  "Krasner, Lisa",
+  "Cornwell, Wesley",
+  "Scott, Lauren A",
+  "Silberkraus, Stephen",
+  "Dickman, Jill",
+  "Hansen, Ira",
+  "Ellison, John",
+  "Williams, Matt",
+  "Jones, Brent A.",
+  "Oscarson, James",
+  "Marchant, Jim",
+  "Wheeler, Jim",
+  "TITUS, ROBIN L.",
+  "KRAMER, AL",
+  "Scheff, Howard",
+  "Phillips, Nick",
+  
+  #Senate Candidates
+  "Ter-Petrosyan, Arsen \"Arsen T\"",
+  "Palmerston, Dennis",
+  "Buck, Carrie",
+  "Seaman, Victoria",
+  "Frazier, Jon",
+  "Gansert, Heidi S.",
+  "Bailey, Kent",
+  "Hammond, Scott T.",
+  "Goicoechea, Pete"
+)
+
+dem_list2016 = c(
+  "Monroe-Moreno, Daniele",
+  "Carver, Owen",
+  "Araujo, Jr., Nelson",
+  "Piro, John",
+  "Miller, Brittney",
+  "Neal, Dina",
+  "McCurdy, II, William",
+  "Frierson, Jason",
+  "Yeager, Steve",
+  "Brooks, Chris",
+  "Diaz, Olivia",
+  "Ohrenschall, James",
+  "Anderson, Elliot",
+  "Carlton, Maggie",
+  "Swank, Heidi",
+  "Thompson, Tyrone",
+  "Carrillo, Richard A.",
+  "Fumo, Ozzie",
+  "Spiegel, Ellen",
+  "Aguirre-Insua, Luis",
+  "Jordahl, Craig",
+  "Joiner, Amber",
+  "Benitez-Thompson, Teresa",
+  "Smith, Allen \"Eli\"",
+  "Flores, Edgar",
+  "Cohen, Lesley Elizabeth",
+  "Sprinkle, Michael",
+  "Cohen, Lesley Elizabeth",
+  "Daly, Richard \"Skip\"",
+  "Bilbray-Axelrod, Shannon",
+  "Watkins, Justin",
+  "DINI, GEORGE R.",
+  "Lyttle, Sean D.",
+  "GREEDY, MICHAEL L.",
+  "Bustamante Adams, Irene",
+  "Jauregui, Sandra",
+  
+  #Senate Candidates
+  "Spearman, Patricia \"Pat\"",
+  "Segerblom, \"Tick\"",
+  "Atkinson, Kelvin",
+  "Woodhouse, Joyce",
+  "Cannizzaro, Nicole",
+  "Parks, David",
+  "Ford, Aaron D.",
+  "Ratti, Julia",
+  "Reese, Devon Thomas",
+  "Marks, Alexander"
+)
+
+incumbent_list = c(
+  "Neal, Dina",
+  "Gardner, David",
+  "Hambrick, John",
+  "Araujo, Jr., Nelson",
+  "Diaz, Olivia",
+  "Ohrenschall, James",
+  "Shelton, Shelly M.",
+  "Anderson, Paul",
+  "Carlton, Maggie",
+  "Anderson, Elliot",
+  "Swank, Heidi",
+  "Thompson, Tyrone",
+  "Carrillo, Richard A.",
+  "Armstrong, Derek",
+  "Spiegel, Ellen",
+  "Joiner, Amber",
+  "Woodbury, Melissa",
+  "Benitez-Thompson, Teresa",
+  "Flores, Edgar",
+  "Sprinkle, Michael",
+  "Silberkraus, Stephen",
+  "Dickman, Jill",
+  "Hansen, Ira",
+  "Bilbray-Axelrod, Shannon",
+  "Jones, Brent A.",
+  "Oscarson, James",
+  "Wheeler, Jim",
+  "TITUS, ROBIN L.",
+  "Bustamante Adams, Irene",
+  
+  #Senate Candidates
+  "Spearman, Patricia \"Pat\"",
+  "Segerblom, \"Tick\"",
+  "Atkinson, Kelvin",
+  "Woodhouse, Joyce",
+  "Parks, David",
+  "Ford, Aaron D.",
+  "Ratti, Julia",
+  "Hammond, Scott T.",
+  "Goicoechea, Pete"
+)
+  
 use_cheatsheet2012_2016 = cheatsheet2012_2016 %>%
   mutate(SENATE_OR_HOUSE=ifelse(SENATE_OR_HOUSE==8,"HOUSE","SENATE")) 
 
@@ -488,14 +635,14 @@ y2016_supp_data = all_prec_data %>%
             DIST_NAME = DIST_NAME[1],
             SENATE_OR_HOUSE=SENATE_OR_HOUSE[1]) %>%
   mutate(turnout = sum(canidate_vote)) %>%
-  ungroup()
+  ungroup() %>%
+  mutate(party_code = ifelse(Selection %in% dem_list2016, "DEM",
+                             ifelse(Selection %>% rep_list2016, "REP",
+                                    "OTHER"))) %>%
+  mutate(INCUMBENCY_DUMMY = ifelse(Selection = incumbent_list, 1, 0))
 
-write.csv(y2016_supp_data, "2016_supplement.csv")
 
-
-
-  
-  
+write.csv(y2016_supp_data, "2016_supplement.csv")  
   
   
   
