@@ -214,7 +214,7 @@ cheatsheet1992_1994CLARK <- CLARK_COUNTY_1992_1994_ASSEMBLY_DISTRICT %>%
   gather(key = SENATE_OR_HOUSE, value = DISTRICT_NUM, `8`, `9`) %>%
   mutate(precname = substring(PRECINCT, 1, 3), 
          precnum = stri_sub(PRECINCT, -3)) %>%
-  mutate(precnum = as.integer(precnum))
+  mutate(precnum = as.integer(precnum)) %>%
   select(-PRECINCT)
 
   #1996-2000
