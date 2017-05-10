@@ -100,38 +100,69 @@ joined_district_data$president_perc_vote_dem = impute_mean(joined_district_data$
 
 ```{r}
 testyear = 2010
-
-single_level_model_data = joined_district_data %>%
-  filter(ELECTION_YEAR >= 2004) # we don't have district numbers for 1968 and 1970! (this should be fixable)
-
-all_train_data = single_level_model_data %>%
-  filter(ELECTION_YEAR < testyear)
-
-all_test_data =  single_level_model_data %>%
-  filter(ELECTION_YEAR == testyear)
-
-house_train_data = filter(all_train_data,Assembly=="HOUSE")
-senate_train_data = filter(all_train_data,Assembly=="SENATE")
-
-house_test_data = filter(all_test_data,Assembly=="HOUSE")
-senate_test_data = filter(all_test_data,Assembly=="SENATE")
-
-train_data = senate_train_data
 model_single_level = function(train_data){
   lm(assembly_composition - lagged_assembly_composition ~ 
        MHI_Change_LOCAL +
        GDPperCapita_CHANGE_US + 
-       incumbent_factor+
-       governor_perc_vote_dem + 
-       president_perc_vote_dem
+       incumbent_factor + 
+       lag_incumbent_factor + 
+       lag_governor_perc_vote_dem + 
+       lag_president_perc_vote_dem + 
+       lag_assembly_vote_dem
        ,data=train_data)
 }
-model1 = model_single_level(senate_train_data)
-AIC(model1)
-guessed_outcome = predict(model1,senate_test_data)
-actual_outcome = senate_test_data$assembly_composition - senate_test_data$lagged_assembly_composition
-error = sqrt(sum((guessed_outcome-actual_outcome)^2)/nrow(senate_test_data))
-error
+train_data = house_data
+probit_model = function(train_data){
+  glm(assembly_composition ~
+       lag_assembly_composition + 
+       MHI_Change_LOCAL +
+       lag_MHI_Change_LOCAL +
+       GDPperCapita_CHANGE_US + 
+       incumbent_factor + 
+       lag_incumbent_factor + 
+       lag_governor_perc_vote_dem + 
+       lag_president_perc_vote_dem + 
+       lag_assembly_vote_dem
+       ,data=train_data
+       ,family = "binomial")
+}
+get_model_accuracy = function(assembly_data,generate_model_fn,testyear){
+  train_data = assembly_data %>%
+    filter(ELECTION_YEAR < testyear) %>%
+    impute_data() %>%
+    # needs to happen after imputation or else the imputation is terreble
+    zero_off_election_years()
+  
+  test_data = assembly_data %>%
+    impute_data() %>%
+    filter(ELECTION_YEAR == testyear) %>%
+    zero_off_election_years() 
+  
+  model1 = generate_model_fn(train_data)
+  
+  guessed_outcome = predict(model1,test_data)
+  actual_outcome = test_data$assembly_composition
+  error = sqrt(sum((guessed_outcome-actual_outcome)^2)/nrow(test_data))
+  error
+}
+testyear = 2014
+generate_model_fn = model_single_level
+get_accuracies = function(assembly_data){
+  years = assembly_data %>%
+    select(ELECTION_YEAR) %>%
+    distinct()
+  estimate_years = years$ELECTION_YEAR[years$ELECTION_YEAR > 2006]
+  accuracies = sapply(estimate_years,function(test_year){
+    get_model_accuracy(assembly_data,model_single_level,test_year)
+  })
+  accuracies
+}
+start_year = 1980
+house_data = lagged_district_data %>%
+  filter(Assembly=="HOUSE",
+         ELECTION_YEAR>=start_year)
+assembly_data = house_data
+accs = get_accuracies(house_data)
 ```
 
 ```{r}
