@@ -70,7 +70,7 @@ output: github_document
 
 ### Codes for Wrangling Precinct-Level Voting Returns (1984-2016)
 
-```{r packages}
+```{r packages,eval=FALSE}
 library(tidyverse)
 library(data.table)
 library(readxl)
