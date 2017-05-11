@@ -5,14 +5,23 @@ output: github_document
 
 ## Codebook for precinct data
 
-### Data sources
+### Data sources (APA Citation)
 
-* Statewide data for 2004-2016
-* ROAD data
-* 
+####Machine-Readable Data
+
+* Statewide precinct-level voting data for 2004-2016. **Nevada's Election Department, "Precinct-Level Results," Office of the Nevada Secretary of State. http://nvsos.gov/sos/elections/election-information/precinct-level-results**
+
+* Reported precinct-level voting data for 1984-2016, collected by Harvard University's Record of American Democracy Project. This project endeavors to find, convert and aggregate data that are going to be useful in conducting time-series empirical research on modern American politics (this includes precinct-level election returns,  socioeconomic features, demographics...) They are the only source that provides statewide precinct-level voting returns prior to 2004. **Gary King, Bradley Palmquist, Greg Adams, Micah Altman, Kenneth Benoit, Claudine Gay, Jeffrey B. Lewis, Russ Mayer and Eric Reinhardt, "Record of American Democracy, All Precincts Data Files" and "Record of American Democracy, All Documentation and Miscellaneous Files," The Record of American Democracy, 1984-1990. Harvard University, Cambridge, MA [producer], Ann Arbor, MI: ICPSR [distributor]: 1997. https://road.hmdc.harvard.edu/data**
+
+
+####PDF-Converts
+* County-level precinct level election returns for 1992-2002 for Clark County in PDF format. **Election Department, "Past Elections," Nevada Clark County Official Website. http://www.clarkcountynv.gov/election/Pages/ElectionHistory.aspx**
+
+* County-level precinct level election returns for 1992-2002 for Washoe County in PDF format. **Registar of Voters, "Election Results Information," Nevada Washoe County Official Website. https://www.washoecounty.us/voters/electionresults/index.php**
+
+* County-level abstracts of vote for 1992-2002 for Carson City in scanned PDF format. **Election Departments, "Election Results And Historical Information," Carson City, Capital of Nevada Official Website. http://www.carson.org/government/departments-a-f/clerk-recorder/elections-department/election-results-and-historical-information**
 
 ### Collumn Specifications
-
 
 * Year: Year of election
 * precname: name of precinct. Sometimes also includes a  number inside of it. Together with precnum, it describes the precinct uniquely. Not entirely standardized, but it comes from original pdfs provided by the state and should roughly match up to them.
