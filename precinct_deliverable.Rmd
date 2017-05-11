@@ -585,6 +585,8 @@ precinct_deliverable <- precinct_deliverable %>%
          STATE_LEGISLATIVE_CHAMBER = SENATE_OR_HOUSE) %>%
   mutate(STATE_LEGISLATIVE_CHAMBER=ifelse(STATE_LEGISLATIVE_CHAMBER==8,"HOUSE","SENATE"))
 
+glimpse(precinct_deliverable)
+
 #Export CSV file of the Washoe County precinct data 1994-2002 with legislative district tags 
 write.csv(precinct_deliverable, "Nevada General Election Precinct Level Voting Results 1984-2016.csv")
 ```
