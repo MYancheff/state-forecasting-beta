@@ -47,7 +47,18 @@ get_part = function(choose_from,condition){
   choose_from[[which(condition)[1]]]
 }
 
-use_data = general_election_data %>%
+y2016_supp = read_csv("2016_supplement.csv") %>%
+  group_by(SENATE_OR_HOUSE,DISTRICT_NUM) %>%
+  mutate(ELECTION_WINNER = ifelse(canidate_vote == max(canidate_vote),1,0)) %>%
+  ungroup() %>%
+  mutate(ELECTION_YEAR = 2016) %>%
+  rename(DISTRICT_NAME = DIST_NAME,
+         CANIDATE_VOTE_TOTAL = canidate_vote,
+         Assembly=SENATE_OR_HOUSE) %>%
+  select(-X1,-turnout,-Selection,-Contest)
+  
+  
+min_collum_data = general_election_data %>%
   select(ELECTION_WINNER,
          ELECTION_YEAR,
          SENATE_OR_HOUSE,
@@ -57,7 +68,12 @@ use_data = general_election_data %>%
          DISTRICT_NUM,
          DISTRICT_NAME) %>%
   mutate(Assembly=ifelse(IN_HOUSE(SENATE_OR_HOUSE),"HOUSE",
-                         ifelse(IN_SENATE(SENATE_OR_HOUSE),"SENATE",NA))) %>%
+                         ifelse(IN_SENATE(SENATE_OR_HOUSE),"SENATE",NA)))%>%
+  select(-SENATE_OR_HOUSE)
+
+all_years_data = rbind(min_collum_data,y2016_supp)
+
+use_data = all_years_data %>%
   group_by(ELECTION_YEAR,Assembly,DISTRICT_NUM,DISTRICT_NAME) %>%
   summarise(wining_party = get_part(party_code,ELECTION_WINNER==1),#MULTI MEMBER DISTRICTS!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             incumbent_factor = ifelse(all(INCUMBENCY_DUMMY==0),
@@ -69,4 +85,4 @@ use_data = general_election_data %>%
             assembly_vote_dem = sum(ifelse(party_code=="DEM",CANIDATE_VOTE_TOTAL,
                                            ifelse(party_code=="REP",-CANIDATE_VOTE_TOTAL,0)))/sum(CANIDATE_VOTE_TOTAL)) %>%
   ungroup()
-
+         

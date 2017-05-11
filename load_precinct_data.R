@@ -513,8 +513,8 @@ graph_data <- precinct_deliverable %>%
 
 
 g1 <- ggplot(graph_data, aes(x = YEAR, y = percent_vote_DEM)) +
-  geom_line(aes(color = DISTRICT)) + 
-  title("How Nevada Clark County's House Districts Voted in Presidental Elections") +
+  geom_line(mapping=aes(color = DISTRICT)) + 
+  ggtitle("How Nevada Clark County's House Districts Voted in Presidental Elections") +
   ylab("Percentage that voted for Democratic Candidate") + 
   theme_bw()
 
