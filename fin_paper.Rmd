@@ -14,14 +14,14 @@ library(mice)
 
 precinct_data_all = read_csv("Nevada General Election Precinct Level Voting Results 1984-2016.csv")
 source("load_carls.R")
-source("load_precinct_data.R")
 source("load_econ_data.R")
 ```
 
 ```{r district_level_data}
 pres_summary = precinct_data_all %>% 
   filter(OFFICENAME %in% c("president","governor")) %>%
-  group_by(OFFICENAME,YEAR,SENATE_OR_HOUSE,DIST_NAME,DISTRICT_NUM,PARTY_CODE) %>%
+  filter(!is.na(VOTES)) %>%
+  group_by(OFFICENAME,YEAR,STATE_LEGISLATIVE_CHAMBER,DIST_NAME,DISTRICT_NUM,PARTY_CODE) %>%
   summarise(vote_count = sum(VOTES),
             Party = get_pres_gov_party(PARTY_CODE[1])) %>%
   summarise(vote_dem = sum(ifelse(PARTY_CODE=="DEM",vote_count,0)),
@@ -31,21 +31,25 @@ pres_summary = precinct_data_all %>%
   unite(RaceValue,OFFICENAME,value_type) %>%
   spread(RaceValue,vote_value)
 
+joined_unnamed_data_2 = filter(joined_unnamed_data,ELECTION_YEAR < 2004,ELECTION_YEAR > 1990)
+pres_summary_2 = filter(pres_summary,YEAR < 2004,YEAR > 1990)
+collected_prec_data_all_2 = filter(precinct_data_all,YEAR < 2004,YEAR > 1990)
+
 named_data = pres_summary %>% 
-  mutate(DISTRICT_NUM = ifelse(is.na(DISTRICT_NUM),1,DISTRICT_NUM))
+  mutate(DISTRICT_NUM = ifelse(is.na(DISTRICT_NUM),1,DISTRICT_NUM)) %>%
+  filter()
 
 joined_named_data = use_data %>%
   left_join(named_data,
-            by=c("ELECTION_YEAR"="YEAR","Assembly"="SENATE_OR_HOUSE","DISTRICT_NUM"="DISTRICT_NUM","DISTRICT_NAME"="DIST_NAME")) %>%
+            by=c("ELECTION_YEAR"="YEAR","Assembly"="STATE_LEGISLATIVE_CHAMBER","DISTRICT_NUM"="DISTRICT_NUM","DISTRICT_NAME"="DIST_NAME")) %>%
   filter(Assembly == "SENATE" & ELECTION_YEAR < 2012)
 
 unnamed_data = pres_summary %>% 
-  mutate(DISTRICT_NAME = NA)
+  select(-DIST_NAME)
 
 joined_unnamed_data = use_data %>%
-  left_join(filter(pres_summary,is.na(DIST_NAME) | DIST_NAME==""),
-            by=c("ELECTION_YEAR"="YEAR","Assembly"="SENATE_OR_HOUSE","DISTRICT_NUM"="DISTRICT_NUM")) %>%
-  select(-DIST_NAME) %>%
+  left_join(unnamed_data,
+            by=c("ELECTION_YEAR"="YEAR","Assembly"="STATE_LEGISLATIVE_CHAMBER","DISTRICT_NUM"="DISTRICT_NUM")) %>%
   filter(!(Assembly == "SENATE" & ELECTION_YEAR < 2012))
 
 district_level_data = rbind(joined_named_data,joined_unnamed_data) %>%
@@ -273,18 +277,16 @@ plot_chart_use_data %>%
 
 ```{r}
 lagged_district_data %>%
-  filter(ELECTION_YEAR %% 4 == 0) %>%
+  filter(ELECTION_YEAR %% 4 == 2) %>%
   filter(abs(assembly_vote_dem) != 1,
-         !is.na(president_perc_vote_dem)) %>%
-  ggplot(aes(y=president_perc_vote_dem,x=assembly_vote_dem/2+0.5))+
-  geom_smooth() + 
+         !is.na(lag_president_perc_vote_dem)) %>%
+  ggplot(aes(y=lag_president_perc_vote_dem,x=assembly_vote_dem/2+0.5))+
+  geom_smooth(method="lm") + 
   geom_point() + 
-  ggtitle("Percent Republican Vote for President and State Legislator at the District Level") + 
-  ylab("Percent Vote for Republican State Legislator") + 
-  xlab("Percent Vote for Republican President") + 
+  ggtitle("Predictive Power of Vote for President in Previous election on State Legislative Vote at the District Level") + 
+  ylab("Percent vote for Republican State Legislator") + 
+  xlab("Percent vote for Republican President in previous election") + 
   facet_wrap(~ELECTION_YEAR)
-  
-  
 ```
 
 ```{r}
