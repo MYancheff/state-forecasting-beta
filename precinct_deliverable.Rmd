@@ -23,12 +23,29 @@ output: github_document
 
 ### Collumn Specifications
 
-* Year: Year of election
-* precname: name of precinct. Sometimes also includes a  number inside of it. Together with precnum, it describes the precinct uniquely. Not entirely standardized, but it comes from original pdfs provided by the state and should roughly match up to them.
-* precnum: number of precinct. Together with precname, it describes the precinct uniquely. Not standardized. See precname for more details. 
-* SENATE_OR_HOUSE: ????
-* DIST_NAME: Nevada often 
+* YEAR: Year of Election. For this particular deliverable, this variable represents the every 2 year cycles for state general elections. It does not include special elections or primary elections. 
 
+* COUNTY: local county names as listed in Nevada's official documents, including its redistricting maps. This is not the FIPS unique identifier code, so you may see names that overlaps with counties outside of nevada. The data under this variable doesn't just pertain to just exclusively counties; it also include name of major jurisdictions that, according to the Nevada's Secretary of State, may be useful in uniquely identify the precincts within that district.
+  Nevada did not experience a change in its county boundaries during the allotted period that is the scope of this deliverable (1984-2016)
+
+* PRECINCT: local name of precinct as assigned by the county election officials. Together with YEAR and COUNTY, it acts as a unique description or identifier of sort for each precinct level observation. It must be noted that the names listed under PRECINCT is not standardized or consistent. This we believe could be attributed back to a lack of pattern or consistency in how the county's election departments collect and (as with the 2004-2016) report the data to the Secretary of State office. This will thus pose significant challenge in trying to use this deliverable to supplement/conduct precinct-level analysis. See below in **Methodology and Data Complication** for more detailed information. 
+
+* STATE_LEGISLATIVE_CHAMBER: indicator  whether or not district (which is a combination of the DIST_NAME and DISTRICT_NUM) that the *n* observation is denoting belongs to the State Assembly or the State Senate. When deciding whether or not to have two collumns delineating State Senate and House Districts separately, we ultimately chose to gather the District Identifiers so that we have a consistent format for documenting the district names and numbers (as the naming convention for Nevada's state legislative districts does change from the 2002-2011 to the 2012- redistricting period). Furthermore, we feel that if you have a variable indicating whether or not the *n* observation(s) pertain to the House or Senate, you can presumably isolate out one of the chamber for specific analysis.  It also make visualization easier, since ggplot can only map 1 variable to 1 aesthetic dimensions.  
+
+* DIST_NAME: District Name. Together with DISTRICT_NUM, it creates a unique identifier for the legislative districts to which the precinct belongs. Almost all of the observations under this collumn is exclusively Senate Districts, as the naming convention for the assembly districts remains unchange during the 1984-2016 period (1 to 42). However, it wasn't until the last redistricting period (2012-) that the Nevada's state legislature announced that it's moving in the same direction with its senate district's naming convention as it did with the assembly districts and associate each senate district with a unique integer from 1 to 21. Before 2012 (from 1984-2010), Nevada's unique identifer for its senate districts include an area indicator (Clark, Washoe, Capital, Northern, Western or Rural) followed by a number. The number starts over once you move to another area (For example, Clark 1-13, then Washoe 1-4). Since the one is repeated across jurisdictions, it's therefore important that we add a DIST_NAME column, as the combination of district name and number is what gives the senate district a unique identifier. Not Standardized. Also did not take into redistricting. The name reported here is the name given to that district during the redistricting process. We have not been able to find an effective way for figuring out how much of the district boundaries of previous redistricting periods change in significant ways in the next one, due to the lack of district shape files going back to even the 2002 redistricting date (much less 1994). 
+
+* DISTRICT_NUM: This is the number assigned to a House or Senate District in Nevada. The House's district numbers are distinctive, but the senate's district numbers (with the exception of 2012-2016) are not. See DIST_NAME for a more detailed explanation of the naming convention associated to Nevada's state legislative districts. Not Standardized. Also did not take into redistricting. The name reported here is the name given to that district during the redistricting process. 
+
+* OFFICENAME: This records the election races for which the political candidate represented in the *n* observation is running: for example, the presidential election. We decided to dismiss the smaller nonpartisans race because they can be relatively uninformative when it comes analysing partisan election outcomes. We also decided, after much deliberation, to also dismiss the state senate and assembly races just to the lack of time and manpower that we need to recode the candidate names with their respective partisanship information for 42 assembly races every 2 years and 21 district races every year from 2004-2016. While I did keep U.S. representatives and Senators races, I do not have continuous data for these 2 races. This is primarily due to the fact that I only converted presidential and governor precinct-leve data. Thus president and governor are the only 2 races that have continuous precinct level reportings from 1984-2016. The rest of the "bigger" election races are definitely missing chunks of data from 1992-2002 
+
+* PARTY_CODE:the candidate's party affilation for observation *n*
+
+* VOTES: the total number within precicnt *n* that votes for *y* PARTY_CODE and *X* officename
+
+* TURNOUT: total number of votes casted at that particular precinct. For some parts of these data, turnout are provided in the original dataframe (Clark County Data, 1992-2002). However, for about 80% percent of the precinct observations, I just ended up summing the votes for REP, DEM and OTHER within such precinct. 
+
+###Methodology and Data Complications
+One of the first thing I realize as I began collecting precinct-level data is 
 
 ###Codes for Wrangling Precinct-Level Voting Returns (1984-2016)
 
