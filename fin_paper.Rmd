@@ -3,12 +3,8 @@ title: "Modeling"
 output: github_document
 ---
 
-# Modeling State Elections
 
-git
-
-
-```{r}
+```{r load_everything, echo=FALSE}
 library(foreign)
 library(tidyverse)
 library(lubridate)
@@ -24,7 +20,7 @@ source("load_precinct_data.R")
 source("load_econ_data.R")
 ```
 
-```{r district_level_data}
+```{r district_level_data, echo=FALSE}
 pres_summary = precinct_data_all %>% 
   filter(OFFICENAME %in% c("president","governor")) %>%
   filter(!is.na(VOTES)) %>%
@@ -67,11 +63,7 @@ district_level_data = rbind(joined_named_data,joined_unnamed_data) %>%
   select(-(governor_total_vote:president_vote_dem))
 ```
 
-The format of the tidied dataset we want to model is this:
-
-Every row is a (Year, Assembly, District) triple. This is a nice unit because it is the unit we want to run models on. However, none of our data is in this form. All of our data is in a (Year, Canidate) format. So in each dataset, before joining, we need to summarise the sort of covariates we want from that bit of canidate level data.
-
-```{r state_level_data}
+```{r state_level_data,echo=FALSE}
 pres_party_in_power_data = read_csv("state-legislative-data/pres_in_power.csv")
 
 state_level_data = economic_data %>%
@@ -94,7 +86,7 @@ state_level_data = economic_data %>%
   mutate(lag_MHI_Change_LOCAL = lag(MHI_Change_LOCAL,order_by=YEAR))
 ```
 
-```{r assembly_level_summary}
+```{r assembly_level_summary,echo=FALSE}
 year_summary = district_level_data %>%
   group_by(Assembly,ELECTION_YEAR) %>%
   summarise(assembly_composition = sum(party_val)/n()) %>%
@@ -102,7 +94,7 @@ year_summary = district_level_data %>%
   ungroup()
 ```
 
-```{r}
+```{r,echo=FALSE}
 joined_district_data = district_level_data %>%
   left_join(year_summary ,by=c("ELECTION_YEAR","Assembly")) %>%
   left_join(state_level_data ,by=c("ELECTION_YEAR"="YEAR")) %>%
@@ -110,7 +102,8 @@ joined_district_data = district_level_data %>%
   select(-DISTRICT_NUM,-DISTRICT_NAME)
 ```
 
-```{r}
+
+```{r,echo=FALSE}
 lagged_district_data = joined_district_data %>%
   group_by(Assembly,DIST_ID) %>%
   #lagged by one year entry (i.e. 2 years for house, 4 years for senate)
@@ -121,27 +114,27 @@ lagged_district_data = joined_district_data %>%
   ungroup()
 ```
 
-```{r impute_missing}
+```{r impute_missing,echo=FALSE}
 impute_data = function(all_data){
-  #mice_imputed_data = complete( mice( all_data ,printFlag=FALSE,m=1))
+  mice_imputed_data = complete( mice( all_data ,printFlag=FALSE,m=1))
   
   
   # conducts amelia imputation
-  removed_amelia_cols = all_data %>%
-    select(DIST_ID,Assembly,wining_party,party_val,pres_elect_penalty,has_incumbent,lag_has_incumbent)
+  #removed_amelia_cols = all_data %>%
+  #  select(DIST_ID,Assembly,wining_party,party_val,pres_elect_penalty,has_incumbent,lag_has_incumbent)
   
-  amelia_data = all_data %>%
-    select(-DIST_ID,-Assembly,-wining_party,-party_val,-pres_elect_penalty,-has_incumbent,-lag_has_incumbent)
+  #amelia_data = all_data %>%
+  #  select(-DIST_ID,-Assembly,-wining_party,-party_val,-pres_elect_penalty,-has_incumbent,-lag_has_incumbent)
   
-  amelia_fit <- amelia(amelia_data,
-                       m=1,
-                       p2s=0,#2 is verbose, 1 is not as verbose, 0 is no output
-                       ts="ELECTION_YEAR")
-  amelia_imputed_data = cbind(amelia_fit$imputations[[1]],removed_amelia_cols)
+  #amelia_fit <- amelia(amelia_data,
+  #                     m=1,
+  #                     p2s=0,#2 is verbose, 1 is not as verbose, 0 is no output
+  #                     ts="ELECTION_YEAR")
+  #amelia_imputed_data = cbind(amelia_fit$imputations[[1]],removed_amelia_cols)
   
   #check if mice_imputed_data or amelia_imputed_data works better
   
-  amelia_imputed_data
+  mice_imputed_data
 }
 zero_off_election_years = function(data){
   data %>%
@@ -155,14 +148,14 @@ zero_off_election_years = function(data){
 ```
 
 
-```{r}
+```{r,echo=FALSE}
 place_has_incumbent = function(data){
   data %>%
     mutate(has_incumbent = ifelse(incumbent_factor==0,0,1),
            lag_has_incumbent = ifelse(lag_incumbent_factor==0,0,1))
 }
-model_single_level = function(train_data){
-  lm(assembly_composition ~ 
+linear_model_acc = function(train_data,test_data){
+  model = lm(assembly_composition ~ 
        #state level data
        lag_assembly_composition*GDPperCapita_CHANGE_US + 
        MHI_Change_LOCAL +
@@ -174,15 +167,18 @@ model_single_level = function(train_data){
        # district level variables
        incumbent_factor + 
        lag_incumbent_factor + 
-       lag_governor_perc_vote_dem*has_incumbent + 
-       lag_president_perc_vote_dem*has_incumbent + 
-       lag_assembly_vote_dem + 
-       lag_assembly_vote_dem*has_incumbent + 
-       lag_assembly_vote_dem*lag_incumbent_factor
+       lag_governor_perc_vote_dem + 
+       lag_president_perc_vote_dem + 
+       lag_assembly_vote_dem
        ,data=train_data)
+  
+  guessed_outcome = predict(model,test_data,type = "response")
+  actual_outcome = test_data$assembly_composition
+  ms_error = sqrt(sum((guessed_outcome-actual_outcome)^2)/nrow(test_data))
+  mean((guessed_outcome+1)/2)
 }
-probit_model = function(train_data){
-  glm((party_val+1)/2 ~
+probit_model_acc = function(train_data,test_data){
+  model = glm((party_val+1)/2 ~
        #state level data
        lag_assembly_composition*GDPperCapita_CHANGE_US + 
        MHI_Change_LOCAL +
@@ -199,8 +195,14 @@ probit_model = function(train_data){
        lag_assembly_vote_dem) * has_incumbent
        ,data=train_data
        ,family="binomial")
+  guessed_outcome = predict(model,test_data,type = "response")
+  discrete_guessed_outcome = ifelse(guessed_outcome>0.5,1,0)
+  actual_outcome = (test_data$party_val+1)/2
+  
+  miscalc_rate = sum(ifelse(discrete_guessed_outcome != actual_outcome,1,0))/nrow(test_data)
+  sum(discrete_guessed_outcome)/nrow(test_data)
 }
-get_model_accuracy = function(assembly_data,generate_model_fn,testyear){
+get_model_accuracy = function(assembly_data,model_acc,testyear){
   train_data = assembly_data %>%
     filter(ELECTION_YEAR < testyear) %>%
     impute_data() %>%
@@ -212,29 +214,16 @@ get_model_accuracy = function(assembly_data,generate_model_fn,testyear){
     filter(ELECTION_YEAR == testyear) %>%
     zero_off_election_years() 
   
-  model1 = generate_model_fn(train_data)
-  
-  guessed_outcome = predict(model1,test_data,type = "response")
-  
-  discrete_outcome = ifelse(guessed_outcome < 0.5, 0, 1)
-  #discrete_outcome = rbinom(rep(1,length(guessed_outcome)),1,guessed_outcome)
-  #actual_outcome = test_data$assembly_composition
-  actual_outcome = (test_data$party_val+1)/2
-  
-  miscalc_rate = sum(ifelse(discrete_outcome != actual_outcome,1,0))
-  
-  ms_error = sqrt(sum((guessed_outcome-actual_outcome)^2)/nrow(test_data))
-  miscalc_rate
+  model_acc(train_data,test_data)
 }
 testyear = 2014
-generate_model_fn = probit_model
-get_accuracies = function(assembly_data){
+get_accuracies = function(assembly_data,generate_model_fn){
   years = assembly_data %>%
     select(ELECTION_YEAR) %>%
     distinct()
-  estimate_years = years$ELECTION_YEAR[years$ELECTION_YEAR > 2002]
+  estimate_years = years$ELECTION_YEAR[years$ELECTION_YEAR > 1996]
   accuracies = sapply(estimate_years,function(test_year){
-    get_model_accuracy(assembly_data,probit_model,test_year)
+    get_model_accuracy(assembly_data,generate_model_fn,test_year)
   })
   possible_elections = sapply(estimate_years,function(test_year){
     nrow(assembly_data %>%
@@ -249,16 +238,40 @@ get_assembly_data = function(assembly){
            ELECTION_YEAR>=start_year) %>%
     place_has_incumbent()
 }
-acccs = get_accuracies(get_assembly_data("HOUSE"))
 ```
 
-```{r}
+
+```{r,echo=FALSE}
+
+assembly_data = get_assembly_data("HOUSE")
+
+probit_acccs = get_accuracies(assembly_data,probit_model_acc)
+linear_acccs = get_accuracies(assembly_data,linear_model_acc)
+
+act_data = year_summary %>%
+  filter(ELECTION_YEAR> 1996,
+         Assembly=="HOUSE") %>%
+  mutate(actual_data = (1+assembly_composition)/2) %>%
+  select(ELECTION_YEAR,actual_data)
+
+act_data$linear_fit = linear_acccs$accuracies
+act_data$probit_fit = probit_acccs$accuracies
+
+act_data %>%
+  gather(key=fit_type,value=senate_comp_value,-ELECTION_YEAR) %>%
+  ggplot(aes(x=ELECTION_YEAR,y=senate_comp_value,color=fit_type))+
+    geom_line() + 
+    scale_y_continuous(limits = c(0,1.7))
+
+```
+
+```{r,echo=FALSE}
 num_samples = 8
 all_accuracies_house = rbindlist(lapply(1:num_samples,function(n)get_accuracies(get_assembly_data("HOUSE"))))
 all_accuracies_senate = rbindlist(lapply(1:num_samples,function(n)get_accuracies(get_assembly_data("SENATE"))))
 ```
 
-```{r}
+```{r,echo=FALSE}
 all_accuracies_house$Assembly="HOUSE"
 all_accuracies_senate$Assembly="SENATE"
 all_accuracies = rbind(all_accuracies_house,all_accuracies_senate)
@@ -269,7 +282,54 @@ ggplot(all_accuracies,aes(x=estimate_years,y=accuracies/possible_elections,color
 
 Plot showing why we did Nevada.
 
-```{r}
+
+
+```{r,echo=FALSE}
+na_to_zero = function(val)ifelse(is.na(val),0,val)
+
+y2016_dat = filter(lagged_district_data,ELECTION_YEAR==2016)
+lagged_district_data %>%
+  mutate(elect_type= ifelse(ELECTION_YEAR %% 4 == 2,"pres","gov"),
+         lag_vote_dem = na_to_zero(lag_governor_perc_vote_dem)+na_to_zero(lag_president_perc_vote_dem)) %>%
+  filter(#abs(assembly_vote_dem) != 1,
+         lag_vote_dem != 0) %>%
+  ggplot(aes(y=lag_vote_dem,x=assembly_vote_dem/2+0.5))+
+  geom_smooth(method="lm") + 
+  geom_point() + 
+  ggtitle("Predictive Power of Vote for President in Previous election on State Legislative Vote at the District Level") + 
+  ylab("Percent vote for Republican State Legislator") + 
+  xlab("Percent vote for Republican President in previous election") + 
+  facet_wrap(~elect_type+ELECTION_YEAR)
+```
+
+```{r,echo=FALSE}
+#Calculate percentage of house captured by Democrats during a Given Year's General Election
+percent_seat_data <- tot_data %>%
+  group_by(ELECTION_YEAR, Assembly) %>%
+  summarize(perc_seats_dem = sum(wining_party=="DEM")/n()) %>%
+  left_join(economic_data,by=c("ELECTION_YEAR"="YEAR"))
+
+
+#Tidy df so that we can graph data on a 2 dimensional plane 
+#Exclude unemployment rate (it stretches te y-axis scale too far to capture insights on
+# the correlating patterns between voting and economic data)
+with_economic_Tidied1 <- percent_seat_data %>% gather(Type,Val,-ELECTION_YEAR, -Assembly, 
+                                                      -Unemployment_LOCAL)
+#Visualize 
+graph1 <- ggplot(with_economic_Tidied1,aes(x=ELECTION_YEAR, y=Val, col=Type)) + 
+  geom_line() + 
+  facet_wrap(~Assembly)
+
+#Tidy a separate df by gathering just Unemployment_Local  and perc_seats_dem under Type
+with_economic_Tidied2 <- percent_seat_data %>% gather(key = Type, value = Percent, 
+                                                      Unemployment_LOCAL, perc_seats_dem)
+```
+
+# Modeling State Legislative Elections In Nevada
+
+Nevada is a politically volitile state, with the state legislature changing every couple of years recently.
+
+```{r,echo=FALSE,warning=FALSE}
 zero_intercept_years = year_summary %>%
   group_by(Assembly) %>%
   mutate(m = (assembly_composition-lag(assembly_composition,order_by=ELECTION_YEAR))/(ELECTION_YEAR-lag(ELECTION_YEAR,order_by=ELECTION_YEAR)),
@@ -307,43 +367,25 @@ plot_chart_use_data %>%
     
 ```
 
-```{r}
-na_to_zero = function(val)ifelse(is.na(val),0,val)
+We want to model state legislative elections, so that we can predict future election results. In particular, the most important result people usually want to know is the party composition of the state legislatures, as this can determine the policy agenda for the state. 
 
-y2016_dat = filter(lagged_district_data,ELECTION_YEAR==2016)
-lagged_district_data %>%
-  mutate(elect_type= ifelse(ELECTION_YEAR %% 4 == 2,"pres","gov"),
-         lag_vote_dem = na_to_zero(lag_governor_perc_vote_dem)+na_to_zero(lag_president_perc_vote_dem)) %>%
-  filter(#abs(assembly_vote_dem) != 1,
-         lag_vote_dem != 0) %>%
-  ggplot(aes(y=lag_vote_dem,x=assembly_vote_dem/2+0.5))+
-  geom_smooth(method="lm") + 
-  geom_point() + 
-  ggtitle("Predictive Power of Vote for President in Previous election on State Legislative Vote at the District Level") + 
-  ylab("Percent vote for Republican State Legislator") + 
-  xlab("Percent vote for Republican President in previous election") + 
-  facet_wrap(~elect_type+ELECTION_YEAR)
-```
+Unfortunately, forecasting state legislative elections is difficult. There is a lot of unobserved characteristics especially at the district level, with certain candidates being of better qualities than others, or particular features of the districts at hand. 
 
-```{r}
-#Calculate percentage of house captured by Democrats during a Given Year's General Election
-percent_seat_data <- tot_data %>%
-  group_by(ELECTION_YEAR, Assembly) %>%
-  summarize(perc_seats_dem = sum(wining_party=="DEM")/n()) %>%
-  left_join(economic_data,by=c("ELECTION_YEAR"="YEAR"))
+Unfortunatly, in Nevada there has been a lot of redistricting, and a lack of precinct level maps that would allow us to account for this by performing a geographic join. Without those maps, we cannot account for unobserved variables in districts by tracking them over a long period of time. 
+
+So we need to gather as much information about a district as possible. For example, one clearly useful variable is the extent to which the canidate of the Democratic party won in the prior year. Another one is whether that canidate was an incumbent or not, and whether they are running again in the upcoming election.
+
+We also gathered several variables at the state and national level, including economic variables such as GDP and median household income, several policial variables such as the party of the president, and governor, and the state legislative composition in the previous year.
 
 
-#Tidy df so that we can graph data on a 2 dimensional plane 
-#Exclude unemployment rate (it stretches te y-axis scale too far to capture insights on
-# the correlating patterns between voting and economic data)
-with_economic_Tidied1 <- percent_seat_data %>% gather(Type,Val,-ELECTION_YEAR, -Assembly, 
-                                                      -Unemployment_LOCAL)
-#Visualize 
-graph1 <- ggplot(with_economic_Tidied1,aes(x=ELECTION_YEAR, y=Val, col=Type)) + 
-  geom_line() + 
-  facet_wrap(~Assembly)
+### Data Tidying and Joining
 
-#Tidy a separate df by gathering just Unemployment_Local  and perc_seats_dem under Type
-with_economic_Tidied2 <- percent_seat_data %>% gather(key = Type, value = Percent, 
-                                                      Unemployment_LOCAL, perc_seats_dem)
-```
+The format of the tidied dataset we want to model is this:
+
+Every row is a (Year, Assembly, District) triple. This is a nice unit because it is the unit we want to run models on. However, none of our data is in this form. All of our data is in a (Year, Canidate) format. So in each dataset, before joining, we need to summarize the sort of covariates we want from that bit of candidate level data.
+
+
+
+
+
+
