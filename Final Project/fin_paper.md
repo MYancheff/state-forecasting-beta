@@ -1,6 +1,37 @@
 Modeling
 ================
 
+``` r
+get_both_model_accuracies_plot = function(model1,model2){
+  assembly_data = get_assembly_data("HOUSE")
+  
+  probit_acccs = get_accuracies(assembly_data,probit_model_acc)
+  linear_acccs = get_accuracies(assembly_data,linear_model_acc)
+  
+  act_data = year_summary %>%
+    mutate(actual_data = (1+assembly_composition)/2,
+           lag_actual_data = (1+lag_assembly_composition)/2) %>%
+    filter(ELECTION_YEAR> 1996,
+           Assembly=="HOUSE") %>%
+    select(ELECTION_YEAR,actual_data,lag_actual_data)
+  
+  act_data$linear_fit = linear_acccs$accuracies
+  act_data$logit_fit = probit_acccs$accuracies
+  
+  act_data %>%
+    gather(key=fit_type,value=senate_comp_value,-ELECTION_YEAR,-actual_data) %>%
+    mutate(senate_comp_value = abs(senate_comp_value - actual_data)) %>%
+    ggplot(aes(x=ELECTION_YEAR,y=senate_comp_value,color=fit_type)) +
+      geom_line() + 
+  #    scale_y_continuous(limits = c(0,1.7)) +
+      ggtitle("Prediction Model Errors") + 
+      xlab("Election Year of Test") + 
+      ylab("Proportion Democrat in State Assembly") + 
+      scale_color_discrete(labels=c("Previous Year's value","Linear Statewide Model","Logit District Level Model"),
+                        guide = guide_legend(title = "Party"))
+}
+```
+
 Modeling State Legislative Elections In Nevada
 ==============================================
 
@@ -16,7 +47,7 @@ As we are trying to predict state legislative outcomes, any given model would lo
 
 Percent of Legislature that are Democrat ~ Known variables before election
 
-### a
+### Modeling problems
 
 Unfortunately, forecasting state legislative elections is difficult. There is a lot of unobserved characteristics especially at the district level, with certain candidates being of better qualities than others, or particular features of the districts at hand.
 
@@ -24,32 +55,38 @@ Unfortunately, in Nevada there has been a lot of redistricting, and a lack of pr
 
 So we need to gather as much information about a district as possible. For example, one clearly useful variable is the extent to which the candidate of the Democratic party won in the prior year. Another one is whether that candidate was an incumbent or not, and whether they are running again in the upcoming election.
 
-We also gathered several variables at the state and national level, including economic variables such as GDP and median household income, several political variables such as the party of the president, and governor, and the state legislative composition in the previous year.
+We also need to gather several variables at the state and national level, including economic variables such as GDP and median household income, several political variables such as the party of the president, and governor, and the state legislative composition in the previous year.
 
 ### Data Tidying and Joining
 
 The format of the tidied dataset we want to model is this:
 
-Every row is a (Year, Assembly, District) triple. This is a nice unit because it is the unit we want to run models on. However, none of our data is in this form. All of our data is in a (Year, Candidate) format. So in each dataset, before joining, we need to summarize the sort of covariates we want from that bit of candidate level data.
+Every row is a (Year, Assembly, District) triple. This is a nice unit because it is the unit we want to run models on. However, none of our data is in this form. All of our data is in a (Year, Candidate) format. We have data both at the precint and the district level, with an identifier that can join them. So in each dataset, before joining, we need to summarize all the precincts in the district and then summarize the sort of covariates we want from that bit of candidate level data. See the Data wrangling section of the code below for more detail.
 
 ### Lagging variables
 
-Most of the useful information about the districts (e.g. voting results) cannot being predicted for the current election, and so dependent variables must all be taken from the previous election. In years other than those between redistricting periods, this is a very simple matter. In redistricting years, ideally we would have kept all the districts which stayed the same, and then try to derive the missing data using imputation (for practical reasons this was not done).
+Most of the useful information about the districts (e.g. voting results) cannot being predicted for the current election, and so most dependent variables must be taken from the previous election. In years other than those between redistricting periods, this is a very simple matter. In redistricting years, ideally we would have kept all the districts which stayed the same, and then try to derive the missing data using imputation (for practical reasons this was not done).
 
-### Multiple Imputation
+### Missing-Data Imputation
 
 Much of our data was missing. However, ordinary models usually expect all variables to be present. So in order to fit a model, we need to fill in this data. This general process is called missing data imputation, or just imputation. In general, an imputation process takes in a dataframe with certain values as NA, and outputs a dataframe without any NA entries.
 
 One way to do this is to simple fill in NAs with the mean or median of all the entries in that collumn. However, with so much dependence between variables, this seriously reduced the quality of the model. I also tried to use Amelia II, via R's Amelia package. This imputation process is based on the multivariate normal distribution. It is fairly flexible, allowing you to specify categorical and numeric data. However, it was extremely fiddly, as it does not work with co-linear variables, and it also assumes that values are pulled from a multivariate normal distribution. I also could not get its categorical variable feature working (it gave a non-standard error). So I chose to use R's MICE (Multiple Imputation by Chained Equasions) package, which can work with a wide variety of data, and seems to work amazingly well out of the box. But perhaps we can measure how well it predicts the data more precisely (See Question 1).
 
+Also note that the MICE imputation method is randomized, which creates fairly signficant variance in our prediction. Unfortunately, it is also slow enough that measuring this variance experimentally is impractical (a single run takes about a two minutes, so 20 runs will take 40).
+
 ### Modeling Design
 
 Two of the simplest ways of predicting state legislative composition are these:
 
--   A simple linear model. The outcome (percentage of Democrats in the legislature) is fit as a simple linear function of the known variables.
--   A logit model. The outcome of each district is fit as a logit model of which party won. Then we can predict who will win at the district level by which party has over 50% probability of winning. Then we can calculate the number of districts it predicts democrats will win in order to get the overall election result.
+-   A simple linear model. The outcome (percentage of Democrats in the legislature) is fit as a linear function of the known variables.
+-   A logit generalized linear model. The outcome of each district is fit as a logit model of which party won. Then we can predict who will win at the district level by which party has over 50% probability of winning. Then we can calculate the number of districts it predicts democrats will win in order to get the overall election result.
 
-Before trying to implement this model, we should collect some data, and see if it seems to be useful.
+The linear model is nice because it . However, the number of outcomes is only the number of elections for which we have data for, which is not very many. That makes it extremely easy to overfit.
+
+The logit model has many more outcomes to train for, but district level outcomes have much more noise, and are generally harder to predict.
+
+Because overfitting is such a serious potential problem, especially for the first model, we want as few variables as possible to model with. So before trying to implement this model, we should collect some data, and see if it seems to be useful, and how the variables might interact with others.
 
 Quality of Covariates
 ---------------------
@@ -60,7 +97,85 @@ Even before modeling, we can at least attempt to see which covariates are import
 
 Even though there is clearly a strong correlation, it does not guarantee that it is useful. Theoretically, the lagged state legislature outcome could contain the same information about the district.
 
-However, it does provide some strong evidence. One of the interesting things about the above plot is that years after 2008 seem to have a stronger correltion between presidential and legislative elections than years before 2008. Perhaps this is the result of an increase in partisanship, but it will have some effect on the outcome of the
+However, it does provide some strong evidence. One of the interesting things about the above plot is that years after 2008 seem to have a stronger correltion between presidential and legislative elections than years before 2008. Perhaps this is the result of an increase in partisanship, but we will need to somehow capture this trend in our model, in order to capture the full benefit of this variable. Two potential ways that might be able to do this are:
+
+1.  Put a linear interaction between Lagged Percent Vote President and Year to capture the general increase over time
+2.  Make a non-linear interaction, such as a dummy varaible that marks elections after 2006.
+
+#### Incumbency
+
+Another important varaible is incumbency. We know that incumbents tend to win far more than non-incumbents. But also we can measure how much they win by.
+
+``` r
+vote_ratio_data <- all_years_data %>%
+  group_by(ELECTION_YEAR, Assembly, DISTRICT_NUM,DISTRICT_NAME) %>%
+  summarise(perc_vote_WINNER = max(CANIDATE_VOTE_TOTAL)/sum(CANIDATE_VOTE_TOTAL),
+            incumbent_present = sum(INCUMBENCY_DUMMY),
+            incumbent_won = sum(INCUMBENCY_DUMMY * CANIDATE_VOTE_TOTAL) == max(CANIDATE_VOTE_TOTAL)) %>%
+  filter(perc_vote_WINNER != 1.00) %>%
+  mutate(incumbent_present = ifelse(incumbent_won,"Incumbent Won",
+                                    ifelse(incumbent_present >= 1, "Incumbent Lost",
+                                    "Open Seat Election")))
+
+#Graph
+g3 <- ggplot(vote_ratio_data, aes(perc_vote_WINNER)) +
+  geom_density() +
+  facet_wrap(~incumbent_present) + 
+  xlab("Proportion Vote of Winner") + 
+  ggtitle("Vote Captured by Winner in Contested Elections")
+g3
+```
+
+![](fin_paper_files/figure-markdown_github/incumbency_plot-1.png)
+
+The above plot suggests that incumbents usually win by far more than non-incumbents. But they also lose on occasion. What variables can help explain when they lose? In theory, as the electorate is more familiar with the incumbent than the non-incumbent, their vote will most likely depend on whether they think they are doing a good job, and less on factors concerning party affiliation, such as national elections etc. So perhaps we can interact the political variables with whether it is an open seat election or not.
+
+The exploration above, and other's models brought me to the following models
+
+``` r
+linear_model_acc = function(train_data,test_data){
+  model = lm(assembly_composition ~ 
+       #state level data
+       lag_assembly_composition*GDPperCapita_CHANGE_US + 
+       midterm_penalty + 
+       pres_elect_penalty + 
+        
+       # district level variables
+       incumbent_factor + 
+       lag_governor_perc_vote_dem + 
+       lag_president_perc_vote_dem + 
+       lag_assembly_vote_dem
+       ,data=train_data)
+  
+  # caculate 
+  guessed_outcome = predict(model,test_data,type = "response")
+  prop_steats_rep = mean((guessed_outcome+1)/2)
+  prop_steats_rep
+}
+probit_model_acc = function(train_data,test_data){
+  model = glm((party_val+1)/2 ~
+       #state level data
+       lag_assembly_composition*GDPperCapita_CHANGE_US + 
+       MHI_Change_LOCAL +
+       lag_MHI_Change_LOCAL +
+       GDPperCapita_CHANGE_US + 
+       midterm_penalty + 
+       pres_elect_penalty + 
+        
+       # district level variables
+       incumbent_factor + 
+       lag_incumbent_factor + 
+       (lag_governor_perc_vote_dem + 
+       lag_president_perc_vote_dem + 
+       lag_assembly_vote_dem) * has_incumbent
+       ,data=train_data
+       ,family="binomial")
+  guessed_outcome = predict(model,test_data,type = "response")
+  discrete_guessed_outcome = ifelse(guessed_outcome>0.5,1,0)
+  prop_steats_rep = sum(discrete_guessed_outcome)/nrow(test_data)
+  prop_steats_rep
+}
+```
 
 Actual Predictive Results
 -------------------------
@@ -71,13 +186,13 @@ In order to make sure that the model actually works, I tested it on previous yea
 
 Given a particular test year,
 
-1.  Filter year so that only years before the test year are in the dataset
+1.  Eliminate future years from the dataset
 2.  Conduct imputation on filtered dataset
 3.  Train model on that imputed dataset
 4.  Predict outcome with that model
 5.  Compare that outcome with the actual outcome
 
-Note that the imputation step has to occur after the prior years are
+Note that the imputation step has to occur after the future years are eliminated since in the test year, we could not have had that infromation to help that imputaton.
 
 And then I ran that for several years prior to 2016.
 
@@ -85,20 +200,20 @@ Here are some results from that method:
 
 ![](fin_paper_files/figure-markdown_github/model_data-1.png)
 
-As you can see, while the models correctly guesses electoral compotition sometimes, it leaves a lot to be desired. The linear model behaves disasteriously in 2002 and 2008, predicting results which are well beyond what is actually possible (the maximum value is 1). But it does much better after 2010. This is most likely due to significant overfitting, and it suggests reducing the number of variables may improve the results. The logit model does pretty well from 2004-2010, but it does terrebly after 2010. However, the two different models are wrong in different places, suggesting that there is a a way to combine their results in a way that is more accurate than either.
+The error is the distance between the actual and the predicted.
 
-Unfortunately, neither model is better than the
+As you can see, while the models correctly guesses electoral compotition sometimes, it leaves a lot to be desired. The linear model behaves disasteriously sometimes, predicting results which are well beyond what is actually possible (the maximum value is 1). But it does much better after 2010. This is most likely due to significant overfitting, and it suggests reducing the number of variables may improve the results. The logit model does pretty well from 2004-2010, but it does terrebly after 2010. Unfortunately, neither model is better than the naive method of simply guessing that the next year is identical to the previous one.
 
-Also note that the MICE imputation method is randomized, which creates fairly signficant variance in our prediction. Unfortunately, it is also slow enough that measuring this variance experimentally is impractical (a single run takes about a two minutes, so 20 runs will take 40).
+So how might we fix this?
 
-MDSR Questions
---------------
+Luckily, we can simply take any idea we want, such as those proposed in the Covariates section above, and try them. Then, generate a plot like the above, and see if it seems to do better than before. This puts us in the following workflow
 
-### Question 1
-
-Measure quality of imputation
-
-### Question 2
+1.  Get the simplest model that might work well.
+2.  Guess a model you think might work better
+3.  Run the test-train method above on that model
+4.  Plot it, or calculate the mean squared error, to see if it does better.
+5.  If it does, then set it as your default model, if not, then throw it out.
+6.  Go back to step 2.
 
 Code
 ----
@@ -272,50 +387,6 @@ place_has_incumbent = function(data){
     mutate(has_incumbent = ifelse(incumbent_factor==0,0,1),
            lag_has_incumbent = ifelse(lag_incumbent_factor==0,0,1))
 }
-linear_model_acc = function(train_data,test_data){
-  model = lm(assembly_composition ~ 
-       #state level data
-       lag_assembly_composition*GDPperCapita_CHANGE_US + 
-       midterm_penalty + 
-       pres_elect_penalty + 
-        
-       # district level variables
-       incumbent_factor + 
-       lag_governor_perc_vote_dem + 
-       lag_president_perc_vote_dem + 
-       lag_assembly_vote_dem
-       ,data=train_data)
-  
-  guessed_outcome = predict(model,test_data,type = "response")
-  actual_outcome = test_data$assembly_composition
-  ms_error = sqrt(sum((guessed_outcome-actual_outcome)^2)/nrow(test_data))
-  mean((guessed_outcome+1)/2)
-}
-probit_model_acc = function(train_data,test_data){
-  model = glm((party_val+1)/2 ~
-       #state level data
-       lag_assembly_composition*GDPperCapita_CHANGE_US + 
-       MHI_Change_LOCAL +
-       lag_MHI_Change_LOCAL +
-       GDPperCapita_CHANGE_US + 
-       midterm_penalty + 
-       pres_elect_penalty + 
-        
-       # district level variables
-       incumbent_factor + 
-       lag_incumbent_factor + 
-       (lag_governor_perc_vote_dem + 
-       lag_president_perc_vote_dem + 
-       lag_assembly_vote_dem) * has_incumbent
-       ,data=train_data
-       ,family="binomial")
-  guessed_outcome = predict(model,test_data,type = "response")
-  discrete_guessed_outcome = ifelse(guessed_outcome>0.5,1,0)
-  actual_outcome = (test_data$party_val+1)/2
-  
-  miscalc_rate = sum(ifelse(discrete_guessed_outcome != actual_outcome,1,0))/nrow(test_data)
-  sum(discrete_guessed_outcome)/nrow(test_data)
-}
 get_model_accuracy = function(assembly_data,model_acc,testyear){
   train_data = assembly_data %>%
     filter(ELECTION_YEAR < testyear) %>%
@@ -354,9 +425,42 @@ get_assembly_data = function(assembly){
 }
 ```
 
+### Model Error Ploting
+
+``` r
+get_both_model_accuracies_plot = function(model1,model2){
+  assembly_data = get_assembly_data("HOUSE")
+  
+  probit_acccs = get_accuracies(assembly_data,probit_model_acc)
+  linear_acccs = get_accuracies(assembly_data,linear_model_acc)
+  
+  act_data = year_summary %>%
+    mutate(actual_data = (1+assembly_composition)/2,
+           lag_actual_data = (1+lag_assembly_composition)/2) %>%
+    filter(ELECTION_YEAR> 1996,
+           Assembly=="HOUSE") %>%
+    select(ELECTION_YEAR,actual_data,lag_actual_data)
+  
+  act_data$linear_fit = linear_acccs$accuracies
+  act_data$logit_fit = probit_acccs$accuracies
+  
+  act_data %>%
+    gather(key=fit_type,value=senate_comp_value,-ELECTION_YEAR,-actual_data) %>%
+    mutate(senate_comp_value = abs(senate_comp_value - actual_data)) %>%
+    ggplot(aes(x=ELECTION_YEAR,y=senate_comp_value,color=fit_type)) +
+      geom_line() + 
+  #    scale_y_continuous(limits = c(0,1.7)) +
+      ggtitle("Prediction Model Errors") + 
+      xlab("Election Year of Test") + 
+      ylab("Proportion Democrat in State Assembly") + 
+      scale_color_discrete(labels=c("Previous Year's value","Linear Statewide Model","Logit District Level Model"),
+                        guide = guide_legend(title = "Party"))
+}
+```
+
 ### Plotting code
 
-#### Plot 1
+#### Legislative composition
 
 ``` r
 line_data = data.frame(YEAR=c(min(year_summary $ELECTION_YEAR),max(year_summary $ELECTION_YEAR)),party_composition=c(0.5,0.5))
@@ -379,12 +483,11 @@ year_summary %>%
                       guide = guide_legend(title = "Party"))
 ```
 
-#### Plot 2
+#### President/Governor state outcomes correlation
 
 ``` r
 na_to_zero = function(val)ifelse(is.na(val),0,val)
 
-y2016_dat = filter(lagged_district_data,ELECTION_YEAR==2016)
 lagged_district_data %>%
   mutate(elect_type= ifelse(ELECTION_YEAR %% 4 == 2,"President","Governor"),
          lag_vote_dem = na_to_zero(lag_governor_perc_vote_dem)+na_to_zero(lag_president_perc_vote_dem)) %>%
@@ -397,4 +500,32 @@ lagged_district_data %>%
   ylab("Percent vote for Republican State Legislator") + 
   xlab("Percent vote for Republican President in previous election") + 
   facet_grid(ELECTION_YEAR~elect_type)
+```
+
+#### Incumbency effect magnitude
+
+``` r
+vote_ratio_data <- all_years_data %>%
+  group_by(ELECTION_YEAR, Assembly, DISTRICT_NUM,DISTRICT_NAME) %>%
+  summarise(perc_vote_WINNER = max(CANIDATE_VOTE_TOTAL)/sum(CANIDATE_VOTE_TOTAL),
+            incumbent_present = sum(INCUMBENCY_DUMMY),
+            incumbent_won = sum(INCUMBENCY_DUMMY * CANIDATE_VOTE_TOTAL) == max(CANIDATE_VOTE_TOTAL)) %>%
+  filter(perc_vote_WINNER != 1.00) %>%
+  mutate(incumbent_present = ifelse(incumbent_won,"Incumbent Won",
+                                    ifelse(incumbent_present >= 1, "Incumbent Lost",
+                                    "Open Seat Election")))
+
+#Graph
+g3 <- ggplot(vote_ratio_data, aes(perc_vote_WINNER)) +
+  geom_density() +
+  facet_wrap(~incumbent_present) + 
+  xlab("Proportion Vote of Winner") + 
+  ggtitle("Vote Captured by Winner in Contested Elections")
+g3
+```
+
+#### Model test output
+
+``` r
+get_both_model_accuracies_plot(probit_model_acc,linear_model_acc)
 ```
