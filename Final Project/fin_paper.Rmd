@@ -241,29 +241,6 @@ get_assembly_data = function(assembly){
 ```
 
 
-```{r,echo=FALSE}
-
-assembly_data = get_assembly_data("HOUSE")
-
-probit_acccs = get_accuracies(assembly_data,probit_model_acc)
-linear_acccs = get_accuracies(assembly_data,linear_model_acc)
-
-act_data = year_summary %>%
-  filter(ELECTION_YEAR> 1996,
-         Assembly=="HOUSE") %>%
-  mutate(actual_data = (1+assembly_composition)/2) %>%
-  select(ELECTION_YEAR,actual_data)
-
-act_data$linear_fit = linear_acccs$accuracies
-act_data$probit_fit = probit_acccs$accuracies
-
-act_data %>%
-  gather(key=fit_type,value=senate_comp_value,-ELECTION_YEAR) %>%
-  ggplot(aes(x=ELECTION_YEAR,y=senate_comp_value,color=fit_type))+
-    geom_line() + 
-    scale_y_continuous(limits = c(0,1.7))
-
-```
 
 ```{r,echo=FALSE}
 num_samples = 8
@@ -280,50 +257,7 @@ ggplot(all_accuracies,aes(x=estimate_years,y=accuracies/possible_elections,color
   geom_smooth()
 ```
 
-Plot showing why we did Nevada.
 
-
-
-```{r,echo=FALSE}
-na_to_zero = function(val)ifelse(is.na(val),0,val)
-
-y2016_dat = filter(lagged_district_data,ELECTION_YEAR==2016)
-lagged_district_data %>%
-  mutate(elect_type= ifelse(ELECTION_YEAR %% 4 == 2,"pres","gov"),
-         lag_vote_dem = na_to_zero(lag_governor_perc_vote_dem)+na_to_zero(lag_president_perc_vote_dem)) %>%
-  filter(#abs(assembly_vote_dem) != 1,
-         lag_vote_dem != 0) %>%
-  ggplot(aes(y=lag_vote_dem,x=assembly_vote_dem/2+0.5))+
-  geom_smooth(method="lm") + 
-  geom_point() + 
-  ggtitle("Predictive Power of Vote for President in Previous election on State Legislative Vote at the District Level") + 
-  ylab("Percent vote for Republican State Legislator") + 
-  xlab("Percent vote for Republican President in previous election") + 
-  facet_wrap(~elect_type+ELECTION_YEAR)
-```
-
-```{r,echo=FALSE}
-#Calculate percentage of house captured by Democrats during a Given Year's General Election
-percent_seat_data <- tot_data %>%
-  group_by(ELECTION_YEAR, Assembly) %>%
-  summarize(perc_seats_dem = sum(wining_party=="DEM")/n()) %>%
-  left_join(economic_data,by=c("ELECTION_YEAR"="YEAR"))
-
-
-#Tidy df so that we can graph data on a 2 dimensional plane 
-#Exclude unemployment rate (it stretches te y-axis scale too far to capture insights on
-# the correlating patterns between voting and economic data)
-with_economic_Tidied1 <- percent_seat_data %>% gather(Type,Val,-ELECTION_YEAR, -Assembly, 
-                                                      -Unemployment_LOCAL)
-#Visualize 
-graph1 <- ggplot(with_economic_Tidied1,aes(x=ELECTION_YEAR, y=Val, col=Type)) + 
-  geom_line() + 
-  facet_wrap(~Assembly)
-
-#Tidy a separate df by gathering just Unemployment_Local  and perc_seats_dem under Type
-with_economic_Tidied2 <- percent_seat_data %>% gather(key = Type, value = Percent, 
-                                                      Unemployment_LOCAL, perc_seats_dem)
-```
 
 # Modeling State Legislative Elections In Nevada
 
@@ -384,8 +318,87 @@ The format of the tidied dataset we want to model is this:
 
 Every row is a (Year, Assembly, District) triple. This is a nice unit because it is the unit we want to run models on. However, none of our data is in this form. All of our data is in a (Year, Canidate) format. So in each dataset, before joining, we need to summarize the sort of covariates we want from that bit of candidate level data.
 
+### Lagging variables
 
+Most of the useful information about the districts (e.g. voting results) cannot being predicted for the current election, and so it must be taken from the previous eleciton. In years other than redistricing years, this is a very simple matter. In redistricting years, ideally we would have kept all the 
 
+### Multiple Imputation
 
+Much of our data was missing. In order to fit a model, we needed to fill in this data. I considered mean and median, however, these seriously reduced the quality of the model. I also tried to use Amelia II, via R's Amelia package. However, this was extremely fiddly, as it does not work with colinear variables, and it also assumes that values are pulled from a multivariate normal distribution. I also could not get its catagorical variable feature working. So I chose to use R's MICE package, which can work with a wide variety of data, and it seemed to work amazingly well out of the box.  
+
+### Modeling Level
+
+Two of the simplest ways of predicting state legislative composition are these:
+
+* A simple linear model. The outcome (percentage of Democrats in the legislature) is fit as a simple linear function of the known variables. 
+* A logit model. The outcome of each district is fit as a logit model of which party won. Then we can predict who will win at the district level by which party has over 50% probabilty of winning. 
+
+## Quality of Covariates
+
+Even before modeling, we can at least attempt to see which covariates are important. The one we are the most interested in is the 
+
+```{r,echo=FALSE,fig.width=6,fig.height=20}
+na_to_zero = function(val)ifelse(is.na(val),0,val)
+
+y2016_dat = filter(lagged_district_data,ELECTION_YEAR==2016)
+lagged_district_data %>%
+  mutate(elect_type= ifelse(ELECTION_YEAR %% 4 == 2,"President","Governor"),
+         lag_vote_dem = na_to_zero(lag_governor_perc_vote_dem)+na_to_zero(lag_president_perc_vote_dem)) %>%
+  filter(#abs(assembly_vote_dem) != 1,
+         lag_vote_dem != 0) %>%
+  ggplot(aes(y=lag_vote_dem,x=assembly_vote_dem/2+0.5))+
+  geom_smooth(method="lm") + 
+  geom_point() + 
+  ggtitle("Predictive Power of President Vote Composition on State Legislative Vote at the District Level") + 
+  ylab("Percent vote for Republican State Legislator") + 
+  xlab("Percent vote for Republican President in previous election") + 
+  facet_grid(ELECTION_YEAR~elect_type)
+```
+
+## Actual Predictive Results
+
+### Train/Test Method
+
+In order to make sure that the model actually works, I tested it on previous years, by running the following algorithm.
+
+Given a particular test year, 
+
+1. Filter out prior years from dataset
+2. Conduct imputation on filtered dataset
+3. Train model on that imputed dataset
+4. Predict outcome with that model
+5. Compare that outcome with the actual outcome
+
+And then I ran that for several years prior to 2016. 
+
+Here are some results from that method:
+
+```{r model_data,echo=FALSE}
+
+assembly_data = get_assembly_data("HOUSE")
+
+probit_acccs = get_accuracies(assembly_data,probit_model_acc)
+linear_acccs = get_accuracies(assembly_data,linear_model_acc)
+
+act_data = year_summary %>%
+  filter(ELECTION_YEAR> 1996,
+         Assembly=="HOUSE") %>%
+  mutate(actual_data = (1+assembly_composition)/2) %>%
+  select(ELECTION_YEAR,actual_data)
+
+act_data$linear_fit = linear_acccs$accuracies
+act_data$logit_fit = probit_acccs$accuracies
+
+act_data %>%
+  gather(key=fit_type,value=senate_comp_value,-ELECTION_YEAR) %>%
+  ggplot(aes(x=ELECTION_YEAR,y=senate_comp_value,color=fit_type))+
+    geom_line() + 
+    scale_y_continuous(limits = c(0,1.7))
+
+```
+
+As you can see, while the model sometimes correctly guesses changes in electoral composition, it leaves a lot to be desired. However, the two different models are wrong in different placces, suggesting that there is a a way to combine their results in a way that is more accurate than either. 
+
+Also note that the MICE imputation method is randomized, which creates variance in our prediction. Unfortunatly, it is also slow enough that measuring this variance numerically is impractical (a single run takes about a two minutes).
 
 
