@@ -10,6 +10,14 @@ Nevada is a politically volatile state, with the state legislature changing ever
 
 We want to model state legislative elections, so that we can predict future election results. In particular, the most important result people usually want to know is the party composition of the state legislatures, as this can determine the policy agenda for the state.
 
+### Modeling structure
+
+As we are trying to predict state legislative outcomes, any given model would look like this:
+
+Percent of Legislature that are Democrat ~ Known variables before election
+
+### a
+
 Unfortunately, forecasting state legislative elections is difficult. There is a lot of unobserved characteristics especially at the district level, with certain candidates being of better qualities than others, or particular features of the districts at hand.
 
 Unfortunately, in Nevada there has been a lot of redistricting, and a lack of precinct level maps that would allow us to account for this by performing a geographic join. Without those maps, we cannot account for unobserved variables in districts by tracking them over a long period of time.
@@ -26,27 +34,33 @@ Every row is a (Year, Assembly, District) triple. This is a nice unit because it
 
 ### Lagging variables
 
-Most of the useful information about the districts (e.g. voting results) cannot being predicted for the current election, and so it must be taken from the previous election. In years other than redistricting years, this is a very simple matter. In redistricting years, ideally we would have kept all the
+Most of the useful information about the districts (e.g. voting results) cannot being predicted for the current election, and so dependent variables must all be taken from the previous election. In years other than those between redistricting periods, this is a very simple matter. In redistricting years, ideally we would have kept all the districts which stayed the same, and then try to derive the missing data using imputation (for practical reasons this was not done).
 
 ### Multiple Imputation
 
-Much of our data was missing. In order to fit a model, we needed to fill in this data. I considered mean and median, however, these seriously reduced the quality of the model. I also tried to use Amelia II, via R's Amelia package. However, this was extremely fiddly, as it does not work with co-linear variables, and it also assumes that values are pulled from a multivariate normal distribution. I also could not get its categorical variable feature working. So I chose to use R's MICE package, which can work with a wide variety of data, and it seemed to work amazingly well out of the box.
+Much of our data was missing. However, ordinary models usually expect all variables to be present. So in order to fit a model, we need to fill in this data. This general process is called missing data imputation, or just imputation. In general, an imputation process takes in a dataframe with certain values as NA, and outputs a dataframe without any NA entries.
 
-### Modeling Level
+One way to do this is to simple fill in NAs with the mean or median of all the entries in that collumn. However, with so much dependence between variables, this seriously reduced the quality of the model. I also tried to use Amelia II, via R's Amelia package. This imputation process is based on the multivariate normal distribution. It is fairly flexible, allowing you to specify categorical and numeric data. However, it was extremely fiddly, as it does not work with co-linear variables, and it also assumes that values are pulled from a multivariate normal distribution. I also could not get its categorical variable feature working (it gave a non-standard error). So I chose to use R's MICE (Multiple Imputation by Chained Equasions) package, which can work with a wide variety of data, and seems to work amazingly well out of the box. But perhaps we can measure how well it predicts the data more precisely (See Question 1).
+
+### Modeling Design
 
 Two of the simplest ways of predicting state legislative composition are these:
 
 -   A simple linear model. The outcome (percentage of Democrats in the legislature) is fit as a simple linear function of the known variables.
--   A logit model. The outcome of each district is fit as a logit model of which party won. Then we can predict who will win at the district level by which party has over 50% probability of winning.
+-   A logit model. The outcome of each district is fit as a logit model of which party won. Then we can predict who will win at the district level by which party has over 50% probability of winning. Then we can calculate the number of districts it predicts democrats will win in order to get the overall election result.
+
+Before trying to implement this model, we should collect some data, and see if it seems to be useful.
 
 Quality of Covariates
 ---------------------
 
 Even before modeling, we can at least attempt to see which covariates are important. The one we are the most interested in are the governor and presidential election results for the previous year, since we spent so much time collecting that data. And we can see that it does have a strong relationship with district level outcomes, which is what we hoped for.
 
-This does not guarantee that it is useful, if it des
-
 ![](fin_paper_files/figure-markdown_github/gov_pres_district_correlation-1.png)
+
+Even though there is clearly a strong correlation, it does not guarantee that it is useful. Theoretically, the lagged state legislature outcome could contain the same information about the district.
+
+However, it does provide some strong evidence. One of the interesting things about the above plot is that years after 2008 seem to have a stronger correltion between presidential and legislative elections than years before 2008. Perhaps this is the result of an increase in partisanship, but it will have some effect on the outcome of the
 
 Actual Predictive Results
 -------------------------
@@ -57,11 +71,13 @@ In order to make sure that the model actually works, I tested it on previous yea
 
 Given a particular test year,
 
-1.  Filter out prior years from dataset
+1.  Filter year so that only years before the test year are in the dataset
 2.  Conduct imputation on filtered dataset
 3.  Train model on that imputed dataset
 4.  Predict outcome with that model
 5.  Compare that outcome with the actual outcome
+
+Note that the imputation step has to occur after the prior years are
 
 And then I ran that for several years prior to 2016.
 
@@ -69,14 +85,25 @@ Here are some results from that method:
 
 ![](fin_paper_files/figure-markdown_github/model_data-1.png)
 
-As you can see, while the model sometimes correctly guesses changes in electoral composition, it leaves a lot to be desired. However, the two different models are wrong in different places, suggesting that there is a a way to combine their results in a way that is more accurate than either.
+As you can see, while the models correctly guesses electoral compotition sometimes, it leaves a lot to be desired. The linear model behaves disasteriously in 2002 and 2008, predicting results which are well beyond what is actually possible (the maximum value is 1). But it does much better after 2010. This is most likely due to significant overfitting, and it suggests reducing the number of variables may improve the results. The logit model does pretty well from 2004-2010, but it does terrebly after 2010. However, the two different models are wrong in different places, suggesting that there is a a way to combine their results in a way that is more accurate than either.
 
-Also note that the MICE imputation method is randomized, which creates variance in our prediction. Unfortunately, it is also slow enough that measuring this variance numerically is impractical (a single run takes about a two minutes).
+Unfortunately, neither model is better than the
+
+Also note that the MICE imputation method is randomized, which creates fairly signficant variance in our prediction. Unfortunately, it is also slow enough that measuring this variance experimentally is impractical (a single run takes about a two minutes, so 20 runs will take 40).
+
+MDSR Questions
+--------------
+
+### Question 1
+
+Measure quality of imputation
+
+### Question 2
 
 Code
 ----
 
-Some of the most important code is below. You can find all of the code by looking in the associated .Rmd file.
+All of the code to generate the plots and model the data is below.
 
 ### Set-up code
 
@@ -91,6 +118,8 @@ library(mice)
 library(data.table)
 ```
 
+The code to load some of the code is in other files.
+
 ``` r
 setwd("..")
 precinct_data_all = read_csv("Nevada General Election Precinct Level Voting Results 1984-2016.csv")
@@ -102,6 +131,7 @@ source("load_econ_data.R")
 ### Data wrangling code
 
 ``` r
+# turn precinct data into data that identifies with a district in an eleciton
 pres_summary = precinct_data_all %>% 
   filter(OFFICENAME %in% c("president","governor")) %>%
   filter(!is.na(VOTES)) %>%
@@ -117,7 +147,7 @@ pres_summary = precinct_data_all %>%
   # deals with werid zeros by remoing them
   mutate(governor_vote_dem = ifelse(governor_vote_dem == 0,NA,governor_vote_dem))
   
-  
+# join the precinct and carl data which needs both name and number to uniquely identify
 named_data = pres_summary %>% 
   mutate(DISTRICT_NUM = ifelse(is.na(DISTRICT_NUM),1,DISTRICT_NUM)) %>%
   filter()
@@ -127,6 +157,7 @@ joined_named_data = use_data %>%
             by=c("ELECTION_YEAR"="YEAR","Assembly"="STATE_LEGISLATIVE_CHAMBER","DISTRICT_NUM"="DISTRICT_NUM","DISTRICT_NAME"="DIST_NAME")) %>%
   filter(Assembly == "SENATE" & ELECTION_YEAR < 2012)
 
+#join the precinct and carl data which needs only the number to identify (names do not necessarily match up correctly)
 unnamed_data = pres_summary %>% 
   select(-DIST_NAME)
 
@@ -135,6 +166,7 @@ joined_unnamed_data = use_data %>%
             by=c("ELECTION_YEAR"="YEAR","Assembly"="STATE_LEGISLATIVE_CHAMBER","DISTRICT_NUM"="DISTRICT_NUM")) %>%
   filter(!(Assembly == "SENATE" & ELECTION_YEAR < 2012))
 
+#calculate variables we actually want to model
 district_level_data = rbind(joined_named_data,joined_unnamed_data) %>%
   mutate(party_val = ifelse(wining_party == "DEM",1,
                             ifelse(wining_party == "REP",-1,0)),
@@ -147,6 +179,7 @@ district_level_data = rbind(joined_named_data,joined_unnamed_data) %>%
 ``` r
 pres_party_in_power_data = read_csv("../state-legislative-data/pres_in_power.csv")
 
+#calculate state level variables for each year
 state_level_data = economic_data %>%
   left_join(pres_party_in_power_data,by=c("YEAR"="year")) %>%
   
@@ -168,6 +201,7 @@ state_level_data = economic_data %>%
 ```
 
 ``` r
+# gets legislature composition for a particular year and house 
 year_summary = district_level_data %>%
   group_by(Assembly,ELECTION_YEAR) %>%
   summarise(assembly_composition = sum(party_val)/n()) %>%
@@ -176,6 +210,7 @@ year_summary = district_level_data %>%
 ```
 
 ``` r
+#collect all districts into a single dataframe for modeling
 joined_district_data = district_level_data %>%
   left_join(year_summary ,by=c("ELECTION_YEAR","Assembly")) %>%
   left_join(state_level_data ,by=c("ELECTION_YEAR"="YEAR")) %>%
@@ -241,15 +276,11 @@ linear_model_acc = function(train_data,test_data){
   model = lm(assembly_composition ~ 
        #state level data
        lag_assembly_composition*GDPperCapita_CHANGE_US + 
-       MHI_Change_LOCAL +
-       lag_MHI_Change_LOCAL +
-       GDPperCapita_CHANGE_US + 
        midterm_penalty + 
        pres_elect_penalty + 
         
        # district level variables
        incumbent_factor + 
-       lag_incumbent_factor + 
        lag_governor_perc_vote_dem + 
        lag_president_perc_vote_dem + 
        lag_assembly_vote_dem

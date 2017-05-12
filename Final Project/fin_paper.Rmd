@@ -293,6 +293,14 @@ year_summary %>%
 
 We want to model state legislative elections, so that we can predict future election results. In particular, the most important result people usually want to know is the party composition of the state legislatures, as this can determine the policy agenda for the state. 
 
+### Modeling structure 
+
+As we are trying to predict state legislative outcomes, any given model would look like this:
+
+Percent of Legislature that are Democrat ~ Known variables before election
+
+### a
+
 Unfortunately, forecasting state legislative elections is difficult. There is a lot of unobserved characteristics especially at the district level, with certain candidates being of better qualities than others, or particular features of the districts at hand. 
 
 Unfortunately, in Nevada there has been a lot of redistricting, and a lack of precinct level maps that would allow us to account for this by performing a geographic join. Without those maps, we cannot account for unobserved variables in districts by tracking them over a long period of time. 
@@ -319,10 +327,6 @@ Much of our data was missing. However, ordinary models usually expect all variab
 One way to do this is to simple fill in NAs with the mean or median of all the entries in that collumn. However, with so much dependence between variables, this seriously reduced the quality of the model. I also tried to use Amelia II, via R's Amelia package. This imputation process is based on the multivariate normal distribution. It is fairly flexible, allowing you to specify categorical and numeric data. However, it was extremely fiddly, as it does not work with co-linear variables, and it also assumes that values are pulled from a multivariate normal distribution. I also could not get its categorical variable feature working (it gave a non-standard error). So I chose to use R's MICE (Multiple Imputation by Chained Equasions) package, which can work with a wide variety of data, and seems to work amazingly well out of the box. But perhaps we can measure how well it predicts the data more precisely (See Question 1).
 
 ### Modeling Design
-
-As we are trying to predict state legislative outcomes, any given model would look like this:
-
-Percent of Legislature that are Democrat ~ Known variables before election
 
 Two of the simplest ways of predicting state legislative composition are these:
 
