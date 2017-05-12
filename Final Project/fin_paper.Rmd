@@ -201,7 +201,7 @@ get_assembly_data = function(assembly){
 }
 ```
 
-```{r model_accuracy_plotter}
+```{r model_accuracy_plotter,echo=FALSE}
 get_both_model_accuracies_plot = function(model1,model2){
   assembly_data = get_assembly_data("HOUSE")
   

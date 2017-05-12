@@ -1,37 +1,6 @@
 Modeling
 ================
 
-``` r
-get_both_model_accuracies_plot = function(model1,model2){
-  assembly_data = get_assembly_data("HOUSE")
-  
-  probit_acccs = get_accuracies(assembly_data,probit_model_acc)
-  linear_acccs = get_accuracies(assembly_data,linear_model_acc)
-  
-  act_data = year_summary %>%
-    mutate(actual_data = (1+assembly_composition)/2,
-           lag_actual_data = (1+lag_assembly_composition)/2) %>%
-    filter(ELECTION_YEAR> 1996,
-           Assembly=="HOUSE") %>%
-    select(ELECTION_YEAR,actual_data,lag_actual_data)
-  
-  act_data$linear_fit = linear_acccs$accuracies
-  act_data$logit_fit = probit_acccs$accuracies
-  
-  act_data %>%
-    gather(key=fit_type,value=senate_comp_value,-ELECTION_YEAR,-actual_data) %>%
-    mutate(senate_comp_value = abs(senate_comp_value - actual_data)) %>%
-    ggplot(aes(x=ELECTION_YEAR,y=senate_comp_value,color=fit_type)) +
-      geom_line() + 
-  #    scale_y_continuous(limits = c(0,1.7)) +
-      ggtitle("Prediction Model Errors") + 
-      xlab("Election Year of Test") + 
-      ylab("Proportion Democrat in State Assembly") + 
-      scale_color_discrete(labels=c("Previous Year's value","Linear Statewide Model","Logit District Level Model"),
-                        guide = guide_legend(title = "Party"))
-}
-```
-
 Modeling State Legislative Elections In Nevada
 ==============================================
 
