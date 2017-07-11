@@ -5,6 +5,7 @@ output: github_document
 
 
 ```{r load_libraries, echo=FALSE,warning=FALSE,message=FALSE,results='hide'}
+knitr::opts_knit$set(root.dir = normalizePath("../"))
 library(foreign)
 library(tidyverse)
 library(lubridate)
@@ -16,11 +17,10 @@ library(data.table)
 ```
 
 ```{r load_data,echo=FALSE,warning=FALSE,message=FALSE,results='hide'}
-setwd("..")
-precinct_data_all = read_csv("Nevada General Election Precinct Level Voting Results 1984-2016.csv")
-source("load_carls.R")
-source("load_precinct_data.R")
-source("load_econ_data.R")
+precinct_data_all = read_csv("data/Nevada_General_Election_Precinct_Level_Voting_Results_1984-2016.csv")
+source("code/load_carls.R")
+source("code/load_precinct_data.R")
+source("code/load_econ_data.R")
 ```
 
 ```{r district_level_data, echo=FALSE}
@@ -70,7 +70,7 @@ district_level_data = rbind(joined_named_data,joined_unnamed_data) %>%
 ```
 
 ```{r state_level_data,echo=FALSE,message=FALSE}
-pres_party_in_power_data = read_csv("../state-legislative-data/pres_in_power.csv")
+pres_party_in_power_data = read_csv("data-raw/state-legislative-data/pres_in_power.csv")
 
 #calculate state level variables for each year
 state_level_data = economic_data %>%

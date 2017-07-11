@@ -67,8 +67,38 @@ It must be noted that this is not the full precinct-level data of every single c
 ### Codes for Wrangling Precinct-Level Voting Returns (1984-2016)
 
 ``` r
+knitr::opts_knit$set(root.dir = normalizePath("../"))
 library(tidyverse)
+```
+
+    ## Loading tidyverse: ggplot2
+    ## Loading tidyverse: tibble
+    ## Loading tidyverse: tidyr
+    ## Loading tidyverse: readr
+    ## Loading tidyverse: purrr
+    ## Loading tidyverse: dplyr
+
+    ## Conflicts with tidy packages ----------------------------------------------
+
+    ## filter(): dplyr, stats
+    ## lag():    dplyr, stats
+
+``` r
 library(data.table)
+```
+
+    ## 
+    ## Attaching package: 'data.table'
+
+    ## The following objects are masked from 'package:dplyr':
+    ## 
+    ##     between, first, last
+
+    ## The following object is masked from 'package:purrr':
+    ## 
+    ##     transpose
+
+``` r
 library(readxl)
 library(dplyr)
 library(stringi)
@@ -80,25 +110,34 @@ library(haven)
 ``` r
 # Load precinct data 2004-2016
 
-folder = "state-legislative-data/Precinct Level Election Results/"
+folder <- "data-raw/state-legislative-data/Precinct_Level_Election_Results/"
 
-first_years = (2004:2012)[c(TRUE, FALSE)]
-later_years = c(2014, 2016)
-all_years = c(first_years,later_years)
+first_years <- (2004:2012)[c(TRUE, FALSE)]
+later_years <- c(2014, 2016)
+all_years <- c(first_years,later_years)
 
-file_end = "(CSV Format).csv"
+file_end <- "(CSV Format).csv"
 # get a list of all the filenames of the files
-statewide_filenames = paste(first_years,"Statewide General Election",file_end)
-gen_filenames = paste(later_years,"General Election Results",file_end)
-all_filenames = c(statewide_filenames,gen_filenames)
-all_paths = paste(folder,all_filenames,sep="")
+statewide_filenames <- paste(first_years,"Statewide General Election",file_end)
+gen_filenames <- paste(later_years,"General Election Results",file_end)
+all_filenames <- c(statewide_filenames,gen_filenames)
+all_paths <- paste(folder,all_filenames,sep="")
 
-load_file = function(filename){
-  read_csv(filename,na=c("","NA","*"))
+load_file <- function(filename){
+  x <- read_csv(filename,na=c("","NA","*"))
+  if (filename == paste(folder, "2016 General Election Results (CSV Format).csv", sep="")) {
+    colnames(x) <- x[2, ]
+    x <- x[-(1:2), ]
+  } else {
+      colnames(x) <- x[3, ]
+      x <- x[-(1:3), ]
+    }
+  
+  return(x)
 }
 
 #List of republican candidates for Presidential, Gubertorial and Congressional Races
-rep_list = c(
+rep_list <- c(
   "GEORGE W. BUSH",
   "McCain, John",
   "Romney, Mitt",
@@ -123,7 +162,7 @@ rep_list = c(
 )
 
 #List of democratic candidates for Presidential, Gubertorial and Congressional Races
-dem_list = c(
+dem_list <- c(
   "JOHN F. KERRY",
   "Obama, Barack",
   "CLINTON, HILLARY",
@@ -151,15 +190,103 @@ dem_list = c(
 )
 
 #Create a function for replacing names with their party affiliations
-get_pres_gov_party = function(name){
+get_pres_gov_party <- function(name){
   ifelse(name %in% rep_list,"REP",
          ifelse(name %in% dem_list, "DEM","OTHER"))
 }
 
 # Put all precinct level csv files for Nevada 2004-2016 into 1 dataframe
-prec_files = lapply(all_paths,load_file)
-with_years = mapply(function(df,year){mutate(df,Year=year)},prec_files,all_years,SIMPLIFY=FALSE)
-all_prec_data = rbindlist(with_years)  %>%
+prec_files <- lapply(all_paths,load_file)
+```
+
+    ## Warning: Missing column names filled in: 'X2' [2], 'X3' [3], 'X4' [4],
+    ## 'X5' [5]
+
+    ## Parsed with column specification:
+    ## cols(
+    ##   `2004 Statewide General Election Results` = col_character(),
+    ##   X2 = col_character(),
+    ##   X3 = col_character(),
+    ##   X4 = col_character(),
+    ##   X5 = col_character()
+    ## )
+
+    ## Warning: Missing column names filled in: 'X2' [2], 'X3' [3], 'X4' [4],
+    ## 'X5' [5]
+
+    ## Parsed with column specification:
+    ## cols(
+    ##   `2006 Statewide General Election Results` = col_character(),
+    ##   X2 = col_character(),
+    ##   X3 = col_character(),
+    ##   X4 = col_character(),
+    ##   X5 = col_character()
+    ## )
+
+    ## Warning: Missing column names filled in: 'X2' [2], 'X3' [3], 'X4' [4],
+    ## 'X5' [5]
+
+    ## Parsed with column specification:
+    ## cols(
+    ##   `2008 Statewide General Election Results` = col_character(),
+    ##   X2 = col_character(),
+    ##   X3 = col_character(),
+    ##   X4 = col_character(),
+    ##   X5 = col_character()
+    ## )
+
+    ## Warning: Missing column names filled in: 'X2' [2], 'X3' [3], 'X4' [4],
+    ## 'X5' [5]
+
+    ## Parsed with column specification:
+    ## cols(
+    ##   `2010 Statewide General Election Results` = col_character(),
+    ##   X2 = col_character(),
+    ##   X3 = col_character(),
+    ##   X4 = col_character(),
+    ##   X5 = col_character()
+    ## )
+
+    ## Warning: Missing column names filled in: 'X2' [2], 'X3' [3], 'X4' [4],
+    ## 'X5' [5]
+
+    ## Parsed with column specification:
+    ## cols(
+    ##   `2012 Statewide General Election Results` = col_character(),
+    ##   X2 = col_character(),
+    ##   X3 = col_character(),
+    ##   X4 = col_character(),
+    ##   X5 = col_character()
+    ## )
+
+    ## Warning: Missing column names filled in: 'X2' [2], 'X3' [3], 'X4' [4],
+    ## 'X5' [5]
+
+    ## Parsed with column specification:
+    ## cols(
+    ##   `2014 Statewide General Election Results` = col_character(),
+    ##   X2 = col_character(),
+    ##   X3 = col_character(),
+    ##   X4 = col_character(),
+    ##   X5 = col_character()
+    ## )
+
+    ## Warning: Missing column names filled in: 'X2' [2], 'X3' [3], 'X4' [4],
+    ## 'X5' [5]
+
+    ## Parsed with column specification:
+    ## cols(
+    ##   `2016 Statewide General Election Results` = col_character(),
+    ##   X2 = col_character(),
+    ##   X3 = col_character(),
+    ##   X4 = col_character(),
+    ##   X5 = col_character()
+    ## )
+
+``` r
+with_years <- mapply(function(df,year){mutate(df,Year=year)},prec_files,all_years,SIMPLIFY=FALSE)
+all_prec_data <- rbindlist(with_years)  %>%
+  mutate(Votes = as.integer(Votes)) %>%
   mutate(Votes = ifelse(is.na(Votes),0,Votes)) %>%
   mutate(Year = as.integer(Year))
 
@@ -201,15 +328,15 @@ cheatsheet2012_2016 <- all_prec_data %>%
   select(-Contest)
 
 #Bind the two precinct-to-district mappings to make join() with main data easier
-full_cheatsheet = rbind(cheatsheet2004_2010,cheatsheet2012_2016)
+full_cheatsheet <- rbind(cheatsheet2004_2010,cheatsheet2012_2016)
 
 #Associate long-form names of election races with short-form (to match the other dfs)
-contest_names = c("Governor","President and Vice President of the United States")
-officenames = c("governor","president")
+contest_names <- c("Governor","President and Vice President of the United States")
+officenames <- c("governor","president")
 
-officename_map = data.frame(contestname = contest_names,officename = officenames)
+officename_map <- data.frame(contestname = contest_names,officename = officenames)
 
-prec_data_election = all_prec_data %>%
+prec_data_election <- all_prec_data %>%
   #filter in only relevant races (president, governor, assembly and senate districts)
   filter(grepl('Governor|President|Congress|United States Senator', Contest),
         !grepl('Lieutenant', Contest)) %>%
@@ -230,6 +357,9 @@ prec_data_election = all_prec_data %>%
   left_join(officename_map,by=c("Contest"="contestname")) %>%
   select(-Contest)
 ```
+
+    ## Warning: Column `Contest`/`contestname` joining character vector and
+    ## factor, coercing into character vector
 
 #### RECORD OF AMERICAN DEMOCRACY, REPORTED PRECINCT-LEVEL DATA (1984-1990)
 
@@ -586,5 +716,5 @@ precinct_deliverable <- precinct_deliverable %>%
 glimpse(precinct_deliverable)
 
 #Export CSV file of the Washoe County precinct data 1994-2002 with legislative district tags
-write.csv(precinct_deliverable, "Nevada General Election Precinct Level Voting Results 1984-2016.csv")
+write.csv(precinct_deliverable, "Nevada_General_Election_Precinct_Level_Voting_Results_1984-2016.csv")
 ```

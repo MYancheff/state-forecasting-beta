@@ -6,6 +6,7 @@ output: github_document
 ---
 
 ```{r}
+knitr::opts_knit$set(root.dir = normalizePath("../"))
 library(foreign)
 library(tidyverse)
 library(lubridate)
@@ -15,18 +16,18 @@ library(grid)
 ```
 
 ```{r function}
-source("load_carls.R")
+source("code/load_carls.R")
 ```
 
 #Plot Trends between Nevada's Economic Conditions and Legislative Election's Results
 ```{r load_economic_data}
 #Import Nevada Data on % Change of Annual Median Household Income (Marginal) 1984-2016
-MedianIncomeData_Nevada = read_csv("state-legislative-data/Economic Data/Nevada Percent Change in Annual Real Median Househod Income Data 1984-2016.csv") %>%
+MedianIncomeData_Nevada = read_csv("data-raw/state-legislative-data/Economic Data/Nevada Percent Change in Annual Real Median Househod Income Data 1984-2016.csv") %>%
   rename(MHI_Change_LOCAL = MEHOINUSNVA672N_PCH) %>%
   mutate(YEAR = as.integer(format(DATE,"%Y")))
 
 #Import Nevada's Annual Unemployment Rate Data 1976-2016 
-Unemployment_Nevada <- read_csv("state-legislative-data/Economic data/Nevada Annual Unemployment Rate 1976-2016.csv") %>% 
+Unemployment_Nevada <- read_csv("data-raw/state-legislative-data/Economic data/Nevada Annual Unemployment Rate 1976-2016.csv") %>% 
   rename(Unemployment_LOCAL = NVUR) %>%
   mutate(YEAR = as.integer(format(DATE,"%Y")))
 
@@ -58,7 +59,7 @@ with_economic = use_dataECON %>%
 with_economic_Tidied <- with_economic %>% gather(key = Type, value = Percent, 
                                                  twoYearUnemployment_LOCAL, twoYearMHI_Change_LOCAL, 
                                                  perc_seats_dem)
-write.csv(with_economic,file="econ_save.csv")
+write.csv(with_economic,file="data/econ_save.csv")
 
 ```
 
@@ -131,7 +132,7 @@ g3
 
 ```{r source_prec,warning=FALSE,message=FALSE,results='hide'}
 
-source("load_precinct_data.R")
+source("code/load_precinct_data.R")
 
 ```
 

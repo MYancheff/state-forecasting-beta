@@ -7,7 +7,7 @@ REP_PARTY_CODE = 200
 is_dem = function(code) ifelse(code=="DEM",1,0)
 
 
-data = read.dta("state-legislative-data/SLERs1967to2015_20160912b_NV.dta")
+data = read.dta("data-raw/state-legislative-data/SLERs1967to2015_20160912b_NV.dta")
 
 tables = lapply(data,function(x)table(x,useNA="ifany"))
 info_densty = lapply(tables,dim)
@@ -47,7 +47,7 @@ get_part = function(choose_from,condition){
   choose_from[[which(condition)[1]]]
 }
 
-y2016_supp = read_csv("2016_supplement.csv") %>%
+y2016_supp = read_csv("data/2016_supplement.csv") %>%
   group_by(SENATE_OR_HOUSE,DISTRICT_NUM) %>%
   mutate(ELECTION_WINNER = ifelse(canidate_vote == max(canidate_vote),1,0)) %>%
   ungroup() %>%

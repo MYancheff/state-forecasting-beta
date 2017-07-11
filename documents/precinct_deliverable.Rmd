@@ -67,7 +67,8 @@ output: github_document
 
 ### Codes for Wrangling Precinct-Level Voting Returns (1984-2016)
 
-```{r packages,eval=FALSE}
+```{r packages, eval= FALSE}
+knitr::opts_knit$set(root.dir = normalizePath("../"))
 library(tidyverse)
 library(data.table)
 library(readxl)
@@ -77,28 +78,37 @@ library(haven)
 ```
 
 #### PRECINCT-LEVEL VOTING DATA (2004-2016), OFFICE OF SECRETARY OF STATE
-```{r 2014-2016,eval=FALSE}
+```{r 2014-2016, eval= FALSE}
 # Load precinct data 2004-2016
 
-folder = "state-legislative-data/Precinct Level Election Results/"
+folder <- "data-raw/state-legislative-data/Precinct_Level_Election_Results/"
 
-first_years = (2004:2012)[c(TRUE, FALSE)]
-later_years = c(2014, 2016)
-all_years = c(first_years,later_years)
+first_years <- (2004:2012)[c(TRUE, FALSE)]
+later_years <- c(2014, 2016)
+all_years <- c(first_years,later_years)
 
-file_end = "(CSV Format).csv"
+file_end <- "(CSV Format).csv"
 # get a list of all the filenames of the files
-statewide_filenames = paste(first_years,"Statewide General Election",file_end)
-gen_filenames = paste(later_years,"General Election Results",file_end)
-all_filenames = c(statewide_filenames,gen_filenames)
-all_paths = paste(folder,all_filenames,sep="")
+statewide_filenames <- paste(first_years,"Statewide General Election",file_end)
+gen_filenames <- paste(later_years,"General Election Results",file_end)
+all_filenames <- c(statewide_filenames,gen_filenames)
+all_paths <- paste(folder,all_filenames,sep="")
 
-load_file = function(filename){
-  read_csv(filename,na=c("","NA","*"))
+load_file <- function(filename){
+  x <- read_csv(filename,na=c("","NA","*"))
+  if (filename == paste(folder, "2016 General Election Results (CSV Format).csv", sep="")) {
+    colnames(x) <- x[2, ]
+    x <- x[-(1:2), ]
+  } else {
+      colnames(x) <- x[3, ]
+      x <- x[-(1:3), ]
+    }
+  
+  return(x)
 }
 
 #List of republican candidates for Presidential, Gubertorial and Congressional Races
-rep_list = c(
+rep_list <- c(
   "GEORGE W. BUSH",
   "McCain, John",
   "Romney, Mitt",
@@ -123,7 +133,7 @@ rep_list = c(
 )
 
 #List of democratic candidates for Presidential, Gubertorial and Congressional Races
-dem_list = c(
+dem_list <- c(
   "JOHN F. KERRY",
   "Obama, Barack",
   "CLINTON, HILLARY",
@@ -151,15 +161,16 @@ dem_list = c(
 )
 
 #Create a function for replacing names with their party affiliations
-get_pres_gov_party = function(name){
+get_pres_gov_party <- function(name){
   ifelse(name %in% rep_list,"REP",
          ifelse(name %in% dem_list, "DEM","OTHER"))
 }
 
 # Put all precinct level csv files for Nevada 2004-2016 into 1 dataframe
-prec_files = lapply(all_paths,load_file)
-with_years = mapply(function(df,year){mutate(df,Year=year)},prec_files,all_years,SIMPLIFY=FALSE)
-all_prec_data = rbindlist(with_years)  %>%
+prec_files <- lapply(all_paths,load_file)
+with_years <- mapply(function(df,year){mutate(df,Year=year)},prec_files,all_years,SIMPLIFY=FALSE)
+all_prec_data <- rbindlist(with_years)  %>%
+  mutate(Votes = as.integer(Votes)) %>%
   mutate(Votes = ifelse(is.na(Votes),0,Votes)) %>%
   mutate(Year = as.integer(Year))
 
@@ -201,15 +212,15 @@ cheatsheet2012_2016 <- all_prec_data %>%
   select(-Contest)
 
 #Bind the two precinct-to-district mappings to make join() with main data easier
-full_cheatsheet = rbind(cheatsheet2004_2010,cheatsheet2012_2016)
+full_cheatsheet <- rbind(cheatsheet2004_2010,cheatsheet2012_2016)
 
 #Associate long-form names of election races with short-form (to match the other dfs)
-contest_names = c("Governor","President and Vice President of the United States")
-officenames = c("governor","president")
+contest_names <- c("Governor","President and Vice President of the United States")
+officenames <- c("governor","president")
 
-officename_map = data.frame(contestname = contest_names,officename = officenames)
+officename_map <- data.frame(contestname = contest_names,officename = officenames)
 
-prec_data_election = all_prec_data %>%
+prec_data_election <- all_prec_data %>%
   #filter in only relevant races (president, governor, assembly and senate districts)
   filter(grepl('Governor|President|Congress|United States Senator', Contest),
         !grepl('Lieutenant', Contest)) %>%
@@ -232,9 +243,9 @@ prec_data_election = all_prec_data %>%
 ```
 
 #### RECORD OF AMERICAN DEMOCRACY, REPORTED PRECINCT-LEVEL DATA (1984-1990)
-```{r 1984-1990,eval=FALSE}
+```{r 1984-1990, eval= FALSE}
 #Import FIPS County_Code Data
-FIPS_County_Code <- read_excel("state-legislative-data/Precinct Level Election Results/FIPS County Code.xlsx")
+FIPS_County_Code <- read_excel("data-raw/state-legislative-data/Precinct Level Election Results/FIPS County Code.xlsx")
 
 #Import and Wrangle the ROAD Data
 filename = paste(folder,"temp_NV_only20170503.dta",sep="")
@@ -292,14 +303,14 @@ road_data = read_dta(filename) %>%
 ```
 
 #### 1992-2002 OF AVAILABLE PRECINCT-LEVEL VOTING RETURNS, PDF-TO-EXCEL CONVERTS
-```{r 1992-2002 Clark County,eval=FALSE}
+```{r 1992-2002 Clark County, eval= FALSE}
 #Import the 1992-2002 Clark County Data, converted into machine-readable format
-nvclark1992to2002 <- read_excel("state-legislative-data/Precinct Level Election Results/nvclark1992to2002.xls")
+nvclark1992to2002 <- read_excel("data-raw/state-legislative-data/Precinct Level Election Results/nvclark1992to2002.xls")
 
 #Import precinct-to-district cheatsheets
   #1992-1994
-CLARK_COUNTY_1992_1994_ASSEMBLY_DISTRICT <- read_excel("state-legislative-data/Precinct Level Election Results/CLARK COUNTY 1992-1994 ASSEMBLY DISTRICT.xlsx")
-CLARK_COUNTY_1992_1994_SENATE_DISTRICT <- read_excel("state-legislative-data/Precinct Level Election Results/CLARK COUNTY 1992-1994 SENATE DISTRICT.xlsx")
+CLARK_COUNTY_1992_1994_ASSEMBLY_DISTRICT <- read_excel("data-raw/state-legislative-data/Precinct Level Election Results/CLARK COUNTY 1992-1994 ASSEMBLY DISTRICT.xlsx")
+CLARK_COUNTY_1992_1994_SENATE_DISTRICT <- read_excel("data-raw/state-legislative-data/Precinct Level Election Results/CLARK COUNTY 1992-1994 SENATE DISTRICT.xlsx")
 
 cheatsheet1992_1994CLARK <- CLARK_COUNTY_1992_1994_ASSEMBLY_DISTRICT %>%
   left_join(CLARK_COUNTY_1992_1994_SENATE_DISTRICT, by=c("PRECINCT" = "PRECINCT")) %>%
@@ -310,16 +321,16 @@ cheatsheet1992_1994CLARK <- CLARK_COUNTY_1992_1994_ASSEMBLY_DISTRICT %>%
   select(-PRECINCT)
 
   #1996-2000
-CLARK_COUNTY_1996_2000_ASSEMBLY_DISTRICT <- read_excel("state-legislative-data/Precinct Level Election Results/CLARK COUNTY 1996-2000 ASSEMBLY DISTRICT.xlsx")  
-CLARK_COUNTY_1996_2000_SENATE_DISTRICT <- read_excel("state-legislative-data/Precinct Level Election Results/CLARK COUNTY 1996-2000 SENATE DISTRICT.xlsx")
+CLARK_COUNTY_1996_2000_ASSEMBLY_DISTRICT <- read_excel("data-raw/state-legislative-data/Precinct Level Election Results/CLARK COUNTY 1996-2000 ASSEMBLY DISTRICT.xlsx")  
+CLARK_COUNTY_1996_2000_SENATE_DISTRICT <- read_excel("data-raw/state-legislative-data/Precinct Level Election Results/CLARK COUNTY 1996-2000 SENATE DISTRICT.xlsx")
 
 cheatsheet1996_2000CLARK <- CLARK_COUNTY_1996_2000_ASSEMBLY_DISTRICT %>%
   left_join(CLARK_COUNTY_1996_2000_SENATE_DISTRICT, by=c("PRECINCT" = "PRECINCT")) %>%
   gather(key = SENATE_OR_HOUSE, value = DISTRICT_NUM, `8`, `9`)
 
   #2002
-CLARK_COUNTY_2002_ASSEMBLY_DISTRICT <- read_excel("state-legislative-data/Precinct Level Election Results/CLARK COUNTY 2002 ASSEMBLY DISTRICT.xlsx")
-CLARK_COUNTY_2002_SENATE_DISTRICT <- read_excel("state-legislative-data/Precinct Level Election Results/CLARK COUNTY 2002 SENATE DISTRICT.xlsx")
+CLARK_COUNTY_2002_ASSEMBLY_DISTRICT <- read_excel("data-raw/state-legislative-data/Precinct Level Election Results/CLARK COUNTY 2002 ASSEMBLY DISTRICT.xlsx")
+CLARK_COUNTY_2002_SENATE_DISTRICT <- read_excel("data-raw/state-legislative-data/Precinct Level Election Results/CLARK COUNTY 2002 SENATE DISTRICT.xlsx")
 CLARK_COUNTY_2002_SENATE_DISTRICT <- CLARK_COUNTY_2002_SENATE_DISTRICT %>%
   mutate(PRECINCT = substring(PRECINCT, 1, 4)) %>%
   mutate(PRECINCT=as.integer(PRECINCT))
@@ -432,10 +443,10 @@ nvclark1992to2002_tidy <- rbind(nvclark1992_tidy, nvclark1994_tidy, nvclark1996_
                                 nvclark1998_tidy, nvclark2000_tidy, nvclark2002_tidy)
 ```
 
-```{r 1992-2002 Carson City,eval=FALSE}
+```{r 1992-2002 Carson City, eval= FALSE}
 
 #Import Carson City Data
-carsoncity1996to2002 <- read_excel("state-legislative-data/Precinct Level Election Results/carsoncity1996to2002.xls")
+carsoncity1996to2002 <- read_excel("data-raw/state-legislative-data/Precinct Level Election Results/carsoncity1996to2002.xls")
 
 #MAIN DATA
 #Wrangle data into a format that works the purpose of this project
@@ -486,9 +497,9 @@ carsoncity1996to2002_tidy <- carsoncity1996to2002_tidy %>%
                                                       "precname" = "precname"))
 ```
 
-```{r 1992-2002 Washoe County,eval=FALSE}
+```{r 1992-2002 Washoe County, eval= FALSE}
 #Import the main Washoe precinct-level voting data from 1994-2002
-washoe1994to2002 <- read_csv("state-legislative-data/Precinct Level Election Results/washoe1994to2002.csv")
+washoe1994to2002 <- read_csv("data-raw/state-legislative-data/Precinct Level Election Results/washoe1994to2002.csv")
 
   #Select the relevant collumns
 washoe1994to2002 <- washoe1994to2002 %>%
@@ -515,7 +526,7 @@ washoe1994to2002_tidy <- washoe1994to2002 %>%
          OTHER = other)
 ```
 
-```{r 1992-2002 Bind Carson City, Clark and Washoe County dfs,eval=FALSE}
+```{r 1992-2002 Bind Carson City, Clark and Washoe County dfs, eval= FALSE}
 
 #Tidy Data (get all the data files into the same formats (same number of collumns))
 carsoncity1996to2002_tidy <- carsoncity1996to2002_tidy %>%
@@ -560,7 +571,7 @@ precinct_data_1992to2002 <- precinct_data_1992to2002 %>%
 ```  
 
 #### Create a comprehensive dataset of all available precinct-level voting data, 1984-2016
-```{r precinct deliverable,eval=FALSE}
+```{r precinct deliverable, eval= FALSE}
 #Reformat the prec_data_election df to match that of the others
 prec_data_election <- prec_data_election %>%
   rename(county = Jurisdiction,
@@ -585,5 +596,5 @@ precinct_deliverable <- precinct_deliverable %>%
 glimpse(precinct_deliverable)
 
 #Export CSV file of the Washoe County precinct data 1994-2002 with legislative district tags
-write.csv(precinct_deliverable, "Nevada General Election Precinct Level Voting Results 1984-2016.csv")
+write.csv(precinct_deliverable, "data/Nevada_General_Election_Precinct_Level_Voting_Results_1984-2016.csv")
 ```

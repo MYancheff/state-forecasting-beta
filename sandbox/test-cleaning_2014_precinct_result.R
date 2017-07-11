@@ -4,7 +4,7 @@
   
   #Import Data
   library(readr)
-PrecinctResults_2014 <- read_csv("Precinct Level Election Results/2014 General Election Results (CSV Format).csv")
+PrecinctResults_2014 <- read_csv("data-raw/state-legislative-data/Precinct_Level_Election_Results/2014 General Election Results (CSV Format).csv")
 
 #Filter out rows not related to presidental, state legislative or governor results
 PrecinctResults_2014Tidy <- PrecinctResults_2014 %>%
@@ -26,7 +26,7 @@ DEM_PARTY_CODE = 100
 REP_PARTY_CODE = 200
 is_dem = function(code) ifelse(code=="DEM",1,0)
 
-data = read_dta("state-legislative-data/SLERs1967to2015_20160912b_NV.dta")
+data = read_dta("data-raw/state-legislative-data/SLERs1967to2015_20160912b_NV.dta")
 
 #Transform Client Data into subset of just 2014 election
 named_data = data %>%
@@ -74,4 +74,4 @@ vote_total <- PrecinctResults_2014Tidy %>%
 #Therefore, it's safe to conjecture that some of those votes came from precincts that didn't report its count in PrecinctResults_2014 (therefore Votes = NA)
 
 #Export csv file of tidied 2014 precinct data
-write.csv(PrecinctResults_2014Tidy, file = "2014 General Election Precinct-Level Results Tidied.csv")
+write.csv(PrecinctResults_2014Tidy, file = "data/2014_General_Election_Precinct-Level_Results_Tidied.csv")
